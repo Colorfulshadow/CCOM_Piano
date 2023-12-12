@@ -223,7 +223,7 @@ if __name__ == '__main__':
     if token:
         calculator = TimeCalculator("https://saas.tansiling.com")
         if config['mode'] == 1:
-            target_time = datetime.strptime("21:29", "%H:%M").time()  # 设定目标时间
+            target_time = datetime.strptime("21:30", "%H:%M").time()  # 设定目标时间
             send_time = calculator.calculate_send_time(target_time, add_day=False)
             segments = split_into_three_hour_segments(config["start_time"], config["end_time"])
             remaining_segments = segments.copy()
