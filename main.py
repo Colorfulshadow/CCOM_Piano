@@ -8,9 +8,8 @@ import json
 with open('config.json', 'r') as config_file:
     config = json.load(config_file)
 class TimeCalculator:
-    def __init__(self, server_url, ping_host):
+    def __init__(self, server_url):
         self.server_url = server_url
-        self.ping_host = ping_host
 
     def get_server_time(self):
         print("正在获取服务器时间...")
@@ -22,15 +21,16 @@ class TimeCalculator:
 
     def measure_latency(self, count=4):
         print("测量与服务器之间的延迟...")
-        ping_cmd = f"ping -n {count} {self.ping_host}"
-        process = subprocess.Popen(ping_cmd.split(), stdout=subprocess.PIPE)
-        output, _ = process.communicate()
-        output = output.decode('GBK')
-        matcher = re.search(r'平均 = (\d+)ms', output)
-        if matcher:
-            avg_rtt = float(matcher.group(1))
-            print("服务器单边延迟:",avg_rtt/2.0,'ms')
-            return avg_rtt / 2.0  # 估计单向延迟
+        # ping_cmd = f"ping -n {count} {self.ping_host}"
+        # process = subprocess.Popen(ping_cmd.split(), stdout=subprocess.PIPE)
+        # output, _ = process.communicate()
+        # output = output.decode('GBK')
+        r = requests.get(self.server_url,proxies=None)
+        # matcher = re.search(r'平均 = (\d+)ms', output)
+        rtt = r.elapsed.microseconds/1000
+        if rtt:
+            print("服务器单边延迟:",rtt/2.0,'ms')
+            return rtt / 2.0  # 估计单向延迟
         return None
 
     def convert_to_timestamp_auto(time_str, add_day=False):
@@ -81,7 +81,7 @@ def login():
             'Authorization': token,
             'Content-Type': 'application/json;charset=UTF-8',
         }
-        verify_response = requests.get(verify_url, headers=headers)
+        verify_response = requests.get(verify_url, headers=headers, proxies=None)
         verify_data = verify_response.json()
 
         if verify_data.get('status') == 200:
@@ -109,7 +109,7 @@ def login():
     body_json = json.dumps(body)
     headers['Content-Length'] = str(len(body_json))
 
-    response = requests.post(login_url, headers=headers, data=body_json)
+    response = requests.post(login_url, headers=headers, data=body_json, proxies=None)
     response_data = response.json()
 
     if response_data.get('status') == 200 and response_data.get('msg') == '成功':
@@ -139,8 +139,8 @@ def send_post_request(start_time, end_time, token):
         'subscribeList': [{'startTime': start_timestamp, 'endTime': end_timestamp, 'aiMonitoringNum': None}]
     }
 
-    # response = requests.post(url, json=data, headers=headers)
-    response = requests.post(url, json=data, headers=headers)
+    # response = requests.post(url, json=data, headers=headers, proxies=None)
+    response = requests.post(url, json=data, headers=headers, proxies=None)
     response_data = response.json()
 
     if response_data.get('status') == 200 and response_data.get('msg') == '成功':
@@ -180,7 +180,7 @@ def get_free_time_slots(start_time, end_time, token):
     print("查找空闲时间段中...")
     url = "https://saas.tansiling.com/order/applet/order/getReserveInformation?device=1403"
     headers = {"Authorization": token}
-    response = requests.get(url, headers=headers)
+    response = requests.get(url, headers=headers, proxies=None)
     print(response.text)
     data = response.json()
 
@@ -221,7 +221,7 @@ if __name__ == '__main__':
     # send_post_at_calculated_time(send_time)
     token = login()
     if token:
-        calculator = TimeCalculator("https://saas.tansiling.com", "saas.tansiling.com")
+        calculator = TimeCalculator("https://saas.tansiling.com")
         if config['mode'] == 1:
             target_time = datetime.strptime("21:29", "%H:%M").time()  # 设定目标时间
             send_time = calculator.calculate_send_time(target_time, add_day=False)
