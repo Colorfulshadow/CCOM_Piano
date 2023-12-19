@@ -3,10 +3,10 @@ import os
 
 
 class Config:
-    path = 'config.json'
-    __slots__ = '_username', '_password', '_token'
+    __slots__ = ('path', '_username', '_password', '_token')
 
     def __init__(self):
+        self.path = os.path.join(os.path.dirname(__file__), 'config.json')
         self._username = ''
         self._password = ''
         self._token = ''
