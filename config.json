@@ -1,11 +1,5 @@
 {
     "username": "",
-    "password_traditonal": "",
-    "password_smart": "",
-    "mode": 1,
-    "lessee_mode": 1,
-    "device_id": "1403",
-    "start_time": "1800",
-    "end_time": "2300",
+    "password": "",
     "token": ""
 }
