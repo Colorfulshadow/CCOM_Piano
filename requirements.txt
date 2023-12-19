@@ -332,7 +332,6 @@ wcwidth==0.2.5
 websockets==7.0
 Werkzeug==0.15.5
 win32-setctime==1.1.0
-wordcloud @ file:///C:/Users/22540/Desktop/wordcloud-1.8.1-cp310-cp310-win_amd64.whl
 wrapcache==1.0.8
 wsproto==1.1.0
 xlrd==1.2.0
