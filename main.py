@@ -26,8 +26,13 @@ class AsyncPostSender:
     def run(self):
         count = 0
         last_message = ""
+        logged_in = False
+        login_time = self.send_time - timedelta(minutes=1)
         while count < self.max_count:
             current_time = datetime.now(pytz.timezone('Asia/Shanghai'))
+            if current_time >= login_time and not logged_in:
+                self.client.soft_login()
+                logged_in = True
             if current_time >= self.send_time:
                 resp = self.client.chose_room(self.room_id,self.start_time,self.end_time)
                 if resp.get('status') == 200 and resp.get('msg') == '成功':
