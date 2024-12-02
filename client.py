@@ -49,14 +49,15 @@ class Client:
         headers = {
             'Content-Type': 'application/json;charset=UTF-8',
             'User-Agent': ua,
-            'Authorization': self.config.token,
+            'Authorization': self.token,
         }
         data_json = json.dumps(data)
         headers['Content-Length'] = str(len(data_json))
         if type == 1:
-            resp = requests.get(url, headers=headers, proxies=None)
+            headers.pop('Content-Length', None)  # 从 headers 中移除 'Content-Length'
+            resp = requests.get(url, headers=headers, proxies=None, verify=False)
         elif type == 2:
-            resp = requests.post(url, json=data, headers=headers, proxies=None)
+            resp = requests.post(url, json=data, headers=headers, proxies=None, verify=False)
         if resp.status_code != 200:
             raise ApiError(f"server panics with http status code: {resp.status_code}")
         api_resp = resp.json()
@@ -75,7 +76,7 @@ class Client:
         headers = {
             'Content-Type': 'application/json;charset=utf-8',
             'User-Agent': ua,
-            'Authorization': self.token,
+            'Authorization': self.config.token,
         }
         resp = requests.get(url, headers=headers, proxies=None)
         api_resp = resp.json()
@@ -92,3 +93,25 @@ class Client:
     def cancel_room(self,order_id:int):
         result = self._call_api(2, 'cancel', {'id': order_id, type:'6'})
         return result
+
+    def find_available_rooms(self):
+        results = []
+        with open('devices_data.csv', mode='r', encoding='utf-8') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                if "无钢琴" not in row['Instruments']:
+                    device_id = int(row['ID'])
+                    api_response = self._call_api(1, 'getReserveInformation?device='+str(device_id),{})
+                    results.append(self.parse_response(api_response))
+        return results
+
+    def parse_response(self, api_response):
+        if api_response['status'] != 200:
+            return {'error': 'API call failed'}
+        data = api_response['data']
+        return {
+            'openDays': data['openDays'],
+            'startTime': data['startTime'],
+            'endTime': data['endTime'],
+            'remainingTimeList': data['remainingTimeList']
+        }

@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from config import root
 import requests
+import pytz
 
 SERVER_ROOT_URL = root
 BEIJING_TIMEZONE = timezone(timedelta(hours=8))
@@ -31,9 +32,6 @@ class TimeUtils:
             raise ValueError("Date is too early to convert to UNIX timestamp.")
         return int(target_datetime.timestamp() * 1000)
 
-
-
-
     @staticmethod
     def split_time(start_time, end_time, segment_hours=3):
         current_date = TimeUtils.get_current_time().date()
@@ -53,6 +51,28 @@ class TimeUtils:
             start_datetime = next_datetime
 
         return segments
+
+    @staticmethod
+    def convert_to_datetime(timestamp_ms, timezone='Asia/Shanghai'):
+        """
+        Convert a Unix timestamp in milliseconds to a human-readable date and time in the specified timezone.
+
+        Parameters:
+        timestamp_ms (int): Unix timestamp in milliseconds.
+        timezone (str): String representing the desired timezone (e.g., 'Asia/Shanghai', 'Europe/Berlin', 'UTC').
+
+        Returns:
+        str: A string representation of the date and time in the specified timezone.
+        """
+        # Convert timestamp from milliseconds to seconds
+        timestamp_s = timestamp_ms / 1000
+        # Convert to a datetime object in UTC
+        dt_utc = datetime.utcfromtimestamp(timestamp_s)
+        # Convert to the desired timezone
+        dt_tz = pytz.timezone(timezone).fromutc(dt_utc)
+        # Format the datetime object to a string
+        return dt_tz.strftime('%Y-%m-%d %H:%M:%S %Z')
+
 
 class ServerTime:
     def __init__(self):

@@ -3,13 +3,14 @@ import os
 
 
 class Config:
-    __slots__ = ('path', '_username', '_password', '_token')
+    __slots__ = ('path', '_username', '_password', '_token', '_send_key')
 
     def __init__(self):
         self.path = os.path.join(os.path.dirname(__file__), 'config.json')
         self._username = ''
         self._password = ''
         self._token = ''
+        self._send_key = ''
         if not os.path.exists(self.path):
             self._save()
             print("please fill config.json with username and password")
@@ -24,6 +25,7 @@ class Config:
             'username': self._username,
             'password': self._password,
             'token': self._token,
+            'send_key': self._send_key
         }
         with open(self.path, 'w') as f:
             json.dump(c, f, indent=4)
@@ -34,6 +36,7 @@ class Config:
             self._username = j['username']
             self._password = j['password']
             self._token = j['token']
+            self._send_key = j['send_key']
 
     @property
     def username(self):
@@ -60,6 +63,15 @@ class Config:
     @token.setter
     def token(self, value):
         self._token = value
+        self._save()
+
+    @property
+    def send_key(self):
+        return self._token
+
+    @send_key.setter
+    def send_key(self, value):
+        self._send_key = value
         self._save()
 
 
