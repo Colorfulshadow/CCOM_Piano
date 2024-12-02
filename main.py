@@ -7,6 +7,16 @@ from datetime import datetime, timedelta, timezone
 from config import config
 from caltime import SendTimeCalculator, TimeUtils
 import requests
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('info.log', encoding='utf-8'),
+        logging.StreamHandler()
+    ]
+)
 
 def send_message(message):
     send_key = config['send_key']
