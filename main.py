@@ -7,19 +7,9 @@ from datetime import datetime, timedelta, timezone
 from config import config
 from caltime import SendTimeCalculator, TimeUtils
 import requests
-import logging
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('info.log', encoding='utf-8'),
-        logging.StreamHandler()
-    ]
-)
 
 def send_message(message):
-    send_key = config['send_key']
+    send_key = config.send_key
     server_url = f'https://sctapi.ftqq.com/{send_key}.send'  # Server酱 API URL
     payload = {
         'title': '脚本通知',  # 通知标题
@@ -28,11 +18,11 @@ def send_message(message):
     try:
         response = requests.post(server_url, data=payload)
         if response.status_code == 200:
-            print("Message sent successfully.")
+            print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - Message sent successfully.")
         else:
-            print(f"Failed to send message. Status code: {response.status_code}")
+            print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - Failed to send message. Status code: {response.status_code}")
     except Exception as e:
-        print(f"Error sending message: {e}")
+        print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - Error sending message: {e}")
 
 class AsyncPostSender:
     def __init__(self, send_time, room_name, start_time, end_time, max_count):
@@ -49,6 +39,7 @@ class AsyncPostSender:
         timeutils = TimeUtils()
         self.start_time_date = timeutils.convert_to_datetime(start_time)
         self.end_time_date = timeutils.convert_to_datetime(end_time)
+
     def start(self):
         self.thread.start()
 
@@ -64,16 +55,16 @@ class AsyncPostSender:
             if current_time >= self.send_time:
                 resp = self.client.chose_room(self.room_id,self.start_time,self.end_time)
                 if resp.get('status') == 200 and resp.get('msg') == '成功':
-                    #  send_message(f"已选上对应时间段 {self.start_time_date}-{self.end_time_date} 脚本结束")
-                    print(f"已选上对应时间段 {self.start_time_date}-{self.end_time_date} 脚本结束")
+                    #  send_message(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - 已选上对应时间段 {self.start_time_date}-{self.end_time_date} 脚本结束")
+                    print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - 已选上对应时间段 {self.start_time_date.strftime('%H:%M')}~{self.end_time_date.strftime('%H:%M')} 脚本结束")
                     return True, "已选上对应时间段"
                 if resp.get('msg') != '重复请求,请稍后再试.':
                     self.last_message = resp.get('msg')
                 count += 1
             else:
                 time.sleep(0.05)  # 根据需要调整睡眠时间
-        # send_message(f"已选上对应时间段 {self.start_time_date}-{self.end_time_date} 脚本结束")
-        print(f"{self.start_time_date}-{self.end_time_date} 抢琴房失败，原因：{self.last_message}")
+        # send_message(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {self.start_time_date}-{self.end_time_date} 抢琴房失败，原因：{self.last_message}")
+        print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {self.start_time_date.strftime('%H:%M')}~{self.end_time_date.strftime('%H:%M')} 抢琴房失败，原因：{self.last_message}")
         return False, self.last_message
 
 if __name__ == '__main__':
