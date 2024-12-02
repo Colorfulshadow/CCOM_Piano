@@ -62,16 +62,17 @@ class TimeUtils:
         timezone (str): String representing the desired timezone (e.g., 'Asia/Shanghai', 'Europe/Berlin', 'UTC').
 
         Returns:
-        str: A string representation of the date and time in the specified timezone.
+        datetime: A datetime object in the specified timezone.
         """
         # Convert timestamp from milliseconds to seconds
         timestamp_s = timestamp_ms / 1000
         # Convert to a datetime object in UTC
         dt_utc = datetime.utcfromtimestamp(timestamp_s)
+        dt_utc = pytz.utc.localize(dt_utc)  # Make the datetime object timezone-aware
         # Convert to the desired timezone
-        dt_tz = pytz.timezone(timezone).fromutc(dt_utc)
-        # Format the datetime object to a string
-        return dt_tz.strftime('%Y-%m-%d %H:%M:%S %Z')
+        dt_tz = pytz.timezone(timezone).normalize(dt_utc.astimezone(pytz.timezone(timezone)))
+        # Return the datetime object (you can format it later as needed)
+        return dt_tz
 
 
 class ServerTime:
