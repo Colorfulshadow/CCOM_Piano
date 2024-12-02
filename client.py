@@ -55,9 +55,9 @@ class Client:
         headers['Content-Length'] = str(len(data_json))
         if type == 1:
             headers.pop('Content-Length', None)  # 从 headers 中移除 'Content-Length'
-            resp = requests.get(url, headers=headers, proxies=None, verify=False)
+            resp = requests.get(url, headers=headers, proxies=None)
         elif type == 2:
-            resp = requests.post(url, json=data, headers=headers, proxies=None, verify=False)
+            resp = requests.post(url, json=data, headers=headers, proxies=None)
         if resp.status_code != 200:
             raise ApiError(f"server panics with http status code: {resp.status_code}")
         api_resp = resp.json()
