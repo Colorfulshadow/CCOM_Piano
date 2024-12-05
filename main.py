@@ -8,21 +8,32 @@ from config import config
 from caltime import SendTimeCalculator, TimeUtils
 import requests
 
-def send_message(message):
-    send_key = config.send_key
-    server_url = f'https://sctapi.ftqq.com/{send_key}.send'  # Server酱 API URL
-    payload = {
-        'title': '脚本通知',  # 通知标题
-        'desp': message  # 通知内容
-    }
-    try:
-        response = requests.post(server_url, data=payload)
-        if response.status_code == 200:
-            print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - Message sent successfully.")
+def send_message(message,status):
+    send_keys = [config.send_keys[i] for i in [0, 1]]
+    for send_key in send_keys:
+        server_url = f'https://notice.zty.ink/{send_key}'
+        if status:
+            payload = {
+                'title': '抢琴房成功啦',
+                'body': message,
+                'icon': 'https://api.zty.ink/api/v2/objects/icon/se2ezd5tzxgsubc0rx.png',
+                'group': '每日一抢琴房'
+            }
         else:
-            print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - Failed to send message. Status code: {response.status_code}")
-    except Exception as e:
-        print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - Error sending message: {e}")
+            payload = {
+                'title': '好可惜，没抢到琴房',
+                'body': message,
+                'icon': 'https://api.zty.ink/api/v2/objects/icon/fi9tl1ylkeyi8yoirb.png',
+                'group': '每日一抢琴房'
+            }
+        try:
+            response = requests.post(server_url, data=payload)
+            if response.status_code == 200:
+                print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - Message sent successfully.")
+            else:
+                print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - Failed to send message. Status code: {response.status_code}")
+        except Exception as e:
+            print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - Error sending message: {e}")
 
 class AsyncPostSender:
     def __init__(self, send_time, room_name, start_time, end_time, max_count):
@@ -55,7 +66,7 @@ class AsyncPostSender:
             if current_time >= self.send_time:
                 resp = self.client.chose_room(self.room_id,self.start_time,self.end_time)
                 if resp.get('status') == 200 and resp.get('msg') == '成功':
-                    #  send_message(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - 已选上对应时间段 {self.start_time_date}-{self.end_time_date} 脚本结束")
+                    send_message(f"已选上对应时间段 {self.start_time_date.strftime('%H:%M')}-{self.end_time_date.strftime('%H:%M')}",status=True)
                     print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - 已选上对应时间段 {self.start_time_date.strftime('%H:%M')}~{self.end_time_date.strftime('%H:%M')} 脚本结束")
                     return True, "已选上对应时间段"
                 if resp.get('msg') != '重复请求,请稍后再试.':
@@ -63,7 +74,7 @@ class AsyncPostSender:
                 count += 1
             else:
                 time.sleep(0.05)  # 根据需要调整睡眠时间
-        # send_message(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {self.start_time_date}-{self.end_time_date} 抢琴房失败，原因：{self.last_message}")
+        send_message(f"{self.start_time_date.strftime('%H:%M')}-{self.end_time_date.strftime('%H:%M')} 抢琴房失败，原因：{self.last_message}",status=False)
         print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {self.start_time_date.strftime('%H:%M')}~{self.end_time_date.strftime('%H:%M')} 抢琴房失败，原因：{self.last_message}")
         return False, self.last_message
 
@@ -73,4 +84,4 @@ if __name__ == '__main__':
     for start_segment, end_segment in segments:
         sender = AsyncPostSender('2130', "教827", start_segment, end_segment, 20)
         sender.start()
-    time.sleep(100)
+    time.sleep(600)
