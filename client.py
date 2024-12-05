@@ -4,6 +4,8 @@ from exceptions import ApiError, LoginError, AlreadyChosen, FailedToChoose, Fail
 import requests
 import json
 import csv
+import os
+
 
 class Client:
     def __init__(self, config:Config):
@@ -49,7 +51,7 @@ class Client:
         headers = {
             'Content-Type': 'application/json;charset=UTF-8',
             'User-Agent': ua,
-            'Authorization': self.token,
+            'Authorization': self.config.token,
         }
         data_json = json.dumps(data)
         headers['Content-Length'] = str(len(data_json))
@@ -64,12 +66,14 @@ class Client:
         return  api_resp
 
     def get_room_id(self, room_name: str) -> str:
-        with open('devices_data.csv', newline='', encoding='utf-8') as csvfile:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        file_path = os.path.join(script_dir, 'devices_data.csv')
+        with open(file_path, newline='', encoding='utf-8') as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
                 if row['Name'] == room_name:
                     return row['ID']
-            raise FailedToFind
+        raise FailedToFind
 
     def get_basic_info(self):
         url = root + '/service-zuul/applet/login/basicInfo'
@@ -96,13 +100,16 @@ class Client:
 
     def find_available_rooms(self):
         results = []
-        with open('devices_data.csv', mode='r', encoding='utf-8') as file:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        file_path = os.path.join(script_dir, 'devices_data.csv')
+        with open(file_path, mode='r', encoding='utf-8') as file:
             reader = csv.DictReader(file)
             for row in reader:
                 if "无钢琴" not in row['Instruments']:
                     device_id = int(row['ID'])
-                    api_response = self._call_api(1, 'getReserveInformation?device='+str(device_id),{})
+                    api_response = self._call_api(1, 'getReserveInformation?device=' + str(device_id), {})
                     results.append(self.parse_response(api_response))
+
         return results
 
     def parse_response(self, api_response):
