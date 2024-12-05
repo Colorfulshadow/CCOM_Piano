@@ -2,5 +2,5 @@
     "username": "",
     "password": "",
     "token": "",
-    "send_key": ""
+    "send_key": [""]
 }
