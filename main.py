@@ -35,6 +35,11 @@ def send_message(message,status):
         except Exception as e:
             print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - Error sending message: {e}")
 
+def add_segments(existing_segments, new_start_time, new_end_time, sgement_hours=3):
+    timeutils = TimeUtils()
+    new_segments = timeutils.split_time(new_start_time, new_end_time, sgement_hours)
+    return existing_segments + new_segments
+
 class AsyncPostSender:
     def __init__(self, send_time, room_name, start_time, end_time, max_count):
         self.client = Client(config)
@@ -80,7 +85,11 @@ class AsyncPostSender:
 
 if __name__ == '__main__':
     timeutils= TimeUtils()
-    segments= timeutils.split_time('1830','2330',3)
+    segments= []
+
+    segments = add_segments(segments, '1400', '1600')
+    segments = add_segments(segments, '1700', '1800')
+
     for start_segment, end_segment in segments:
         sender = AsyncPostSender('2130', "教827", start_segment, end_segment, 20)
         sender.start()
