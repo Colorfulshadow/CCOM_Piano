@@ -1,0 +1,164 @@
+{% extends 'base.html' %}
+
+{% block title %}创建一次性预约 - CCOM 钢琴预约{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h1>创建一次性预约</h1>
+        <p class="lead">为特定日期预约琴房或取消已有预约</p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <a href="{{ url_for('reservation.one_time_list') }}" class="btn btn-outline-primary">
+            <i class="fas fa-arrow-left"></i> 返回列表
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>查看琴房可用性</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="availability_room" class="form-label">琴房</label>
+                    <select class="form-select" id="availability_room">
+                        <option value="" selected disabled>选择琴房</option>
+                        {% for room in rooms %}
+                        <option value="{{ room.id }}">{{ room.name }} - {{ room.instruments }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label for="availability_date" class="form-label">日期</label>
+                    <input type="date" class="form-control" id="availability_date" min="{{ min_date }}">
+                </div>
+
+                <div class="d-grid">
+                    <button type="button" class="btn btn-outline-primary" onclick="checkRoomAvailability(
+                        document.getElementById('availability_room').value,
+                        document.getElementById('availability_date').value
+                    )">
+                        <i class="fas fa-search"></i> 查看可用性
+                    </button>
+                </div>
+
+                <div id="alert-container" class="mt-3"></div>
+
+                <div id="loading-spinner" class="text-center my-4 d-none">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                    <p class="mt-2">正在查询可用性...</p>
+                </div>
+
+                <div id="availability-container" class="mt-3 d-none"></div>
+            </div>
+        </div>
+
+        <div class="card" id="reservation-form">
+            <div class="card-header">
+                <h5>预约详情</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('reservation.one_time_create') }}">
+                    <div class="mb-3">
+                        <label for="date" class="form-label">日期</label>
+                        <input type="date" class="form-control" id="date" name="date" min="{{ min_date }}" required>
+                        <div class="form-text">您只能预约明天或之后的日期。</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="room_id" class="form-label">琴房</label>
+                        <select class="form-select" id="room_id" name="room_id" required>
+                            <option value="" selected disabled>选择琴房</option>
+                            {% for room in rooms %}
+                            <option value="{{ room.id }}">{{ room.name }} - {{ room.instruments }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="start_time_display" class="form-label">开始时间</label>
+                            <input type="time" class="form-control" id="start_time_display" name="start_time_display"
+                                   data-target="start_time" required>
+                            <input type="hidden" name="start_time" id="start_time">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="end_time_display" class="form-label">结束时间</label>
+                            <input type="time" class="form-control" id="end_time_display" name="end_time_display"
+                                   data-target="end_time" required>
+                            <input type="hidden" name="end_time" id="end_time">
+                        </div>
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="is_cancellation" name="is_cancellation">
+                        <label class="form-check-label" for="is_cancellation">这是取消预约请求</label>
+                        <div class="form-text">如果您想取消现有预约，请勾选此项。</div>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>重要提示：</strong>
+                        <ul class="mb-0">
+                            <li>最长预约时间为 <strong>{{ current_app.config['MAX_RESERVATION_HOURS'] }} 小时</strong>。</li>
+                            <li>每天最多可有 <strong>{{ current_app.config['MAX_DAILY_RESERVATIONS'] }} 个预约</strong>。</li>
+                            <li>此请求将在今晚 <strong>21:30</strong> 处理。</li>
+                        </ul>
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> 创建请求
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize time inputs
+        const startTimeDisplay = document.getElementById('start_time_display');
+        const endTimeDisplay = document.getElementById('end_time_display');
+        const startTimeHidden = document.getElementById('start_time');
+        const endTimeHidden = document.getElementById('end_time');
+        
+        // Function to update hidden fields when visible time inputs change
+        function updateHiddenTime(displayElement, hiddenElement) {
+            displayElement.addEventListener('change', function() {
+                if (this.value) {
+                    // Convert HH:MM to HHMM
+                    hiddenElement.value = this.value.replace(':', '');
+                }
+            });
+        }
+        
+        updateHiddenTime(startTimeDisplay, startTimeHidden);
+        updateHiddenTime(endTimeDisplay, endTimeHidden);
+        
+        // Link availability form with reservation form
+        const availabilityRoom = document.getElementById('availability_room');
+        const availabilityDate = document.getElementById('availability_date');
+        const reservationRoom = document.getElementById('room_id');
+        const reservationDate = document.getElementById('date');
+        
+        availabilityRoom.addEventListener('change', function() {
+            reservationRoom.value = this.value;
+        });
+        
+        availabilityDate.addEventListener('change', function() {
+            reservationDate.value = this.value;
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+
+{% block title %}CCOM 钢琴预约系统{% endblock %}
+
+{% block styles %}
+<style>
+    .feature-icon {
+        font-size: 2.5rem;
+        color: var(--primary-color);
+        margin-bottom: 1rem;
+    }
+
+    .feature-card {
+        height: 100%;
+        text-align: center;
+        padding: 2rem 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- 首页主图 -->
+<div class="hero-section">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-6">
+                <h1 class="hero-title">CCOM 钢琴预约系统</h1>
+                <p class="hero-subtitle">轻松预约中央音乐学院的练习琴房</p>
+                <a href="{{ url_for('auth.login') }}" class="btn btn-light btn-lg">
+                    <i class="fas fa-sign-in-alt"></i> 登录
+                </a>
+            </div>
+            <div class="col-lg-6 text-center">
+                <i class="fas fa-piano-keyboard" style="font-size: 10rem; opacity: 0.8;"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 功能介绍 -->
+<div class="container">
+    <h2 class="text-center mb-5">功能特点</h2>
+
+    <div class="row">
+        <div class="col-md-4 mb-4">
+            <div class="card feature-card">
+                <div class="feature-icon">
+                    <i class="fas fa-calendar-alt"></i>
+                </div>
+                <h4>每周循环预约</h4>
+                <p>为您的常规练习时间表设置自动每周预约。</p>
+            </div>
+        </div>
+
+        <div class="col-md-4 mb-4">
+            <div class="card feature-card">
+                <div class="feature-icon">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <h4>自动预约</h4>
+                <p>系统在每天 21:30 自动为第二天的时段进行预约。</p>
+            </div>
+        </div>
+
+        <div class="col-md-4 mb-4">
+            <div class="card feature-card">
+                <div class="feature-icon">
+                    <i class="fas fa-bell"></i>
+                </div>
+                <h4>推送通知</h4>
+                <p>当预约确认或出现问题时接收通知。</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-3">
+        <div class="col-md-4 mb-4">
+            <div class="card feature-card">
+                <div class="feature-icon">
+                    <i class="fas fa-list-alt"></i>
+                </div>
+                <h4>完整琴房列表</h4>
+                <p>浏览所有可用琴房及其详细信息。</p>
+            </div>
+        </div>
+
+        <div class="col-md-4 mb-4">
+            <div class="card feature-card">
+                <div class="feature-icon">
+                    <i class="fas fa-calendar-plus"></i>
+                </div>
+                <h4>一次性预约</h4>
+                <p>为特定日期进行单独预约或取消。</p>
+            </div>
+        </div>
+
+        <div class="col-md-4 mb-4">
+            <div class="card feature-card">
+                <div class="feature-icon">
+                    <i class="fas fa-history"></i>
+                </div>
+                <h4>预约历史</h4>
+                <p>在一处跟踪所有过去和即将到来的预约。</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 工作原理 -->
+<div class="container mt-5">
+    <h2 class="text-center mb-5">工作原理</h2>
+
+    <div class="row">
+        <div class="col-md-6 offset-md-3">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-1 me-2"></i> 使用 CCOM 凭据登录</h5>
+                    <p class="card-text">使用您的中央音乐学院学号和密码登录。</p>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-2 me-2"></i> 设置您的时间表</h5>
+                    <p class="card-text">为您的常规练习时间创建每周循环预约。</p>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-3 me-2"></i> 让系统为您工作</h5>
+                    <p class="card-text">系统每天在 21:30 自动为第二天预约您的琴房。</p>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-4 me-2"></i> 接收确认</h5>
+                    <p class="card-text">当预约确认或需要更改时收到通知。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="text-center mt-4">
+        <a href="{{ url_for('auth.login') }}" class="btn btn-primary btn-lg">
+            立即开始使用
+        </a>
+    </div>
+</div>
+{% endblock %}

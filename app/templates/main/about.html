@@ -1,0 +1,171 @@
+{% extends 'base.html' %}
+
+{% block title %}关于 - CCOM 钢琴预约{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h4>关于 CCOM 钢琴预约系统</h4>
+            </div>
+            <div class="card-body">
+                <h5>这是什么系统？</h5>
+                <p>
+                    CCOM 钢琴预约系统是一个网络应用程序，旨在自动化中央音乐学院练习琴房的预约流程。
+                    它与 CCOM 官方预约系统集成，在最早可能的时间自动预约琴房，为您提供最佳机会确保您喜欢的练习场所。
+                </p>
+
+                <h5>工作原理</h5>
+                <p>
+                    每天 21:30，CCOM 开放第二天的琴房预约。本系统将在此时自动尝试预约您选择的琴房，
+                    省去您手动登录和预约的麻烦。
+                </p>
+
+                <h5>功能特点</h5>
+                <ul>
+                    <li><strong>每周循环预约：</strong> 设置每周同一天重复的预约。</li>
+                    <li><strong>一次性预约：</strong> 为特定日期预约琴房或取消现有预约。</li>
+                    <li><strong>自动预约：</strong> 系统在最佳时间处理预约流程。</li>
+                    <li><strong>推送通知：</strong> 预约成功或出现问题时获得通知。</li>
+                    <li><strong>琴房浏览器：</strong> 查看所有可用琴房及其详细信息。</li>
+                    <li><strong>预约历史：</strong> 跟踪您过去和即将到来的预约。</li>
+                </ul>
+
+                <h5>系统限制</h5>
+                <p>
+                    CCOM 预约系统有几项限制，本应用程序遵守这些限制：
+                </p>
+                <ul>
+                    <li>每位用户每天最多 <strong>{{ system_info.max_daily_reservations }}</strong> 个预约</li>
+                    <li>每个预约时段最长 <strong>{{ system_info.max_reservation_hours }}</strong> 小时</li>
+                    <li>预约在 <strong>{{ system_info.reservation_open_time[:2] }}:{{ system_info.reservation_open_time[2:] }}</strong> 开放，用于第二天的时段</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h4>系统统计</h4>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-4">
+                        <div class="stats-counter">
+                            <div class="counter-value">{{ system_info.reservation_count }}</div>
+                            <div class="counter-label">总预约数</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="stats-counter">
+                            <div class="counter-value">{{ system_info.user_count }}</div>
+                            <div class="counter-label">活跃用户</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="stats-counter">
+                            <div class="counter-value">{{ system_info.room_count }}</div>
+                            <div class="counter-label">可用琴房</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h4>常见问题</h4>
+            </div>
+            <div class="card-body">
+                <div class="accordion" id="faqAccordion">
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="faq1">
+                            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#faqAnswer1">
+                                如何设置循环预约？
+                            </button>
+                        </h2>
+                        <div id="faqAnswer1" class="accordion-collapse collapse show" data-bs-parent="#faqAccordion">
+                            <div class="accordion-body">
+                                进入"预约管理"菜单并选择"每周循环预约"。点击"创建新预约"来设置新的循环预约。
+                                选择星期几、琴房和时间段。系统将在该星期每周自动预约此琴房。
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="faq2">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqAnswer2">
+                                如果预约失败会怎样？
+                            </button>
+                        </h2>
+                        <div id="faqAnswer2" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                            <div class="accordion-body">
+                                如果预约失败（通常是因为琴房已被占用），如果您已设置推送通知，您将收到通知。
+                                系统不会自动重试，但您可以为其他琴房创建一次性预约。
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="faq3">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqAnswer3">
+                                如何取消预约？
+                            </button>
+                        </h2>
+                        <div id="faqAnswer3" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                            <div class="accordion-body">
+                                要取消预约，请前往"预约管理" > "一次性预约"并创建新的取消请求。
+                                选择您要取消的预约相同的日期、琴房和时间段，并勾选"取消"复选框。
+                                系统将在下一个处理时间窗口取消预约。
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="faq4">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqAnswer4">
+                                我可以同时预约多个琴房吗？
+                            </button>
+                        </h2>
+                        <div id="faqAnswer4" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                            <div class="accordion-body">
+                                不可以，CCOM 系统不允许一个用户有多个重叠的预约。
+                                如果您需要更换琴房，您需要先取消现有预约。
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="faq5">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqAnswer5">
+                                如何获取关于预约的通知？
+                            </button>
+                        </h2>
+                        <div id="faqAnswer5" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                            <div class="accordion-body">
+                                前往您的个人资料页面并添加推送通知密钥。您可以通过访问
+                                <a href="https://notice.zty.ink/" target="_blank">https://notice.zty.ink/</a> 并创建新频道来获取一个。
+                                设置完成后，您将收到关于预约成功和失败的通知。
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h4>联系我们</h4>
+            </div>
+            <div class="card-body">
+                <p>
+                    如果您对系统有疑问、建议或需要帮助，请联系管理员。
+                </p>
+                <p>
+                    <strong>GitHub 仓库：</strong> <a href="https://github.com/yourusername/ccom-piano-reservation" target="_blank">https://github.com/yourusername/ccom-piano-reservation</a>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

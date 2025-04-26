@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+
+{% block title %}一次性预约 - CCOM 钢琴预约{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h1>一次性预约</h1>
+        <p class="lead">管理您的一次性预约和取消请求</p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <a href="{{ url_for('reservation.one_time_create') }}" class="btn btn-primary">
+            <i class="fas fa-plus-circle"></i> 创建新预约
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        {% if reservations %}
+        <div class="table-responsive">
+            <table class="table table-hover table-reservations">
+                <thead>
+                    <tr>
+                        <th>日期</th>
+                        <th>琴房</th>
+                        <th>时间</th>
+                        <th>类型</th>
+                        <th>状态</th>
+                        <th>创建时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for res in reservations %}
+                    <tr class="{{ res.status }}">
+                        <td>{{ res.reservation_date.strftime('%Y-%m-%d') }}</td>
+                        <td>{{ res.room.name }}</td>
+                        <td>{{ res.start_time[:2] }}:{{ res.start_time[2:] }} - {{ res.end_time[:2] }}:{{ res.end_time[2:] }}</td>
+                        <td>
+                            {% if res.is_cancellation %}
+                            <span class="badge bg-warning">取消预约</span>
+                            {% else %}
+                            <span class="badge bg-info">预约</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if res.status == 'pending' %}
+                            <span class="badge bg-warning">等待处理</span>
+                            {% elif res.status == 'successful' %}
+                            <span class="badge bg-success">成功</span>
+                            {% else %}
+                            <span class="badge bg-danger">失败</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ res.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>
+                            {% if res.status == 'pending' %}
+                            <form method="POST" action="{{ url_for('reservation.one_time_delete', id=res.id) }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="您确定要删除这个等待处理的请求吗？">
+                                    <i class="fas fa-trash"></i> 删除
+                                </button>
+                            </form>
+                            {% else %}
+                            <span class="text-muted">已处理</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> 您没有任何等待处理的一次性预约或取消请求。
+        </div>
+        <div class="text-center my-4">
+            <p>
+                一次性预约允许您为单一日期预约特定琴房。
+                取消预约功能让您取消现有的预约。
+            </p>
+            <a href="{{ url_for('reservation.one_time_create') }}" class="btn btn-primary">
+                <i class="fas fa-plus-circle"></i> 创建一次性预约
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5>关于一次性预约</h5>
+    </div>
+    <div class="card-body">
+        <p>
+            <i class="fas fa-info-circle text-primary"></i>
+            一次性预约和取消请求会在每天 <strong>21:30</strong> 自动处理，用于第二天的时段。
+        </p>
+
+        <div class="row">
+            <div class="col-md-6">
+                <h6>一次性预约</h6>
+                <p>用于预约特定日期的琴房：</p>
+                <ol>
+                    <li>为特定日期、琴房和时间创建一次性预约。</li>
+                    <li>系统将在预约开放时间 21:30 尝试预约此琴房。</li>
+                    <li>您将收到关于结果的通知（如果已启用通知）。</li>
+                </ol>
+            </div>
+            <div class="col-md-6">
+                <h6>一次性取消</h6>
+                <p>用于取消现有预约：</p>
+                <ol>
+                    <li>为您现有预约的确切日期、琴房和时间创建取消请求。</li>
+                    <li>系统将在下一个处理时间窗口尝试取消此预约。</li>
+                    <li>您将收到关于结果的通知（如果已启用通知）。</li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>注意：</strong> 系统遵守 CCOM 对每个用户每天 {{ current_app.config['MAX_DAILY_RESERVATIONS'] }} 个预约的限制。
+            如果您已达到此限制，您的一次性预约可能会失败。
+        </div>
+    </div>
+</div>
+{% endblock %}

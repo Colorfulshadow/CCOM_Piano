@@ -1,0 +1,178 @@
+{% extends 'base.html' %}
+
+{% block title %}预约处理结果 - 管理员 - CCOM 钢琴预约{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h1>预约处理结果</h1>
+        <p class="lead">手动预约处理执行结果</p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <a href="{{ url_for('admin.system') }}" class="btn btn-outline-primary">
+            <i class="fas fa-arrow-left"></i> 返回系统设置
+        </a>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5>处理摘要</h5>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-{% if results.total_failed == 0 %}success{% elif results.total_successful > 0 %}warning{% else %}danger{% endif %}">
+            <i class="fas fa-{% if results.total_failed == 0 %}check-circle{% elif results.total_successful > 0 %}exclamation-triangle{% else %}times-circle{% endif %}"></i>
+            处理完成，<strong>{{ results.total_successful }}</strong> 个成功，<strong>{{ results.total_failed }}</strong> 个失败。
+            {% if results.notifications_sent is defined %}
+            已发送 <strong>{{ results.notifications_sent }}</strong> 条通知。
+            {% endif %}
+        </div>
+
+        <table class="table">
+            <tr>
+                <th>目标日期：</th>
+                <td>{{ results.target_date.strftime('%Y-%m-%d') }}</td>
+            </tr>
+            <tr>
+                <th>总处理数：</th>
+                <td>{{ results.total_processed }}</td>
+            </tr>
+            <tr>
+                <th>成功：</th>
+                <td>{{ results.total_successful }}</td>
+            </tr>
+            <tr>
+                <th>失败：</th>
+                <td>{{ results.total_failed }}</td>
+            </tr>
+            {% if results.notifications_sent is defined %}
+            <tr>
+                <th>已发送通知：</th>
+                <td>{{ results.notifications_sent }}</td>
+            </tr>
+            {% endif %}
+            <tr>
+                <th>执行时间：</th>
+                <td>{{ now.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+            </tr>
+        </table>
+    </div>
+</div>
+
+<div class="row">
+    <!-- 循环预约结果 -->
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>循环预约</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <tr>
+                            <th>已处理：</th>
+                            <td>{{ results.recurring.processed }}</td>
+                        </tr>
+                        <tr>
+                            <th>成功：</th>
+                            <td>{{ results.recurring.successful }}</td>
+                        </tr>
+                        <tr>
+                            <th>失败：</th>
+                            <td>{{ results.recurring.failed }}</td>
+                        </tr>
+                        <tr>
+                            <th>已跳过：</th>
+                            <td>{{ results.recurring.skipped }}</td>
+                        </tr>
+                    </table>
+                </div>
+
+                {% if results.recurring.errors %}
+                <div class="mt-3">
+                    <h6>错误：</h6>
+                    <ul class="list-group">
+                        {% for error in results.recurring.errors %}
+                        <li class="list-group-item list-group-item-danger">{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- 一次性预约结果 -->
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>一次性预约</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <tr>
+                            <th>已处理：</th>
+                            <td>{{ results.one_time.processed }}</td>
+                        </tr>
+                        <tr>
+                            <th>成功：</th>
+                            <td>{{ results.one_time.successful }}</td>
+                        </tr>
+                        <tr>
+                            <th>失败：</th>
+                            <td>{{ results.one_time.failed }}</td>
+                        </tr>
+                    </table>
+                </div>
+
+                {% if results.one_time.errors %}
+                <div class="mt-3">
+                    <h6>错误：</h6>
+                    <ul class="list-group">
+                        {% for error in results.one_time.errors %}
+                        <li class="list-group-item list-group-item-danger">{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5>下一步操作</h5>
+    </div>
+    <div class="card-body">
+        <p>预约处理已完成。您现在可以：</p>
+
+        <div class="list-group">
+            <a href="{{ url_for('admin.history') }}" class="list-group-item list-group-item-action">
+                <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1">查看详细历史</h6>
+                    <i class="fas fa-history"></i>
+                </div>
+                <p class="mb-1">查看关于所有已处理预约的详细信息。</p>
+            </a>
+
+            <a href="{{ url_for('admin.system') }}" class="list-group-item list-group-item-action">
+                <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1">返回系统设置</h6>
+                    <i class="fas fa-cogs"></i>
+                </div>
+                <p class="mb-1">管理其他系统设置和维护任务。</p>
+            </a>
+
+            <a href="{{ url_for('admin.test_reservation') }}" class="list-group-item list-group-item-action">
+                <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1">再次运行处理</h6>
+                    <i class="fas fa-play"></i>
+                </div>
+                <p class="mb-1">再次执行预约处理。</p>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

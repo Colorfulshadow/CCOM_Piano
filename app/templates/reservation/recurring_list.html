@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+
+{% block title %}每周循环预约 - CCOM 钢琴预约{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h1>每周循环预约</h1>
+        <p class="lead">管理您的每周练习时间表</p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <a href="{{ url_for('reservation.recurring_create') }}" class="btn btn-primary">
+            <i class="fas fa-plus-circle"></i> 创建新预约
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        {% if reservations %}
+        <div class="table-responsive">
+            <table class="table table-hover table-reservations">
+                <thead>
+                    <tr>
+                        <th>星期</th>
+                        <th>琴房</th>
+                        <th>时间</th>
+                        <th>状态</th>
+                        <th>创建时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for res in reservations %}
+                    <tr>
+                        <td>{{ res.get_day_name() }}</td>
+                        <td>{{ res.room.name }}</td>
+                        <td>{{ res.start_time[:2] }}:{{ res.start_time[2:] }} - {{ res.end_time[:2] }}:{{ res.end_time[2:] }}</td>
+                        <td>
+                            {% if res.is_active %}
+                            <span class="badge bg-success">启用</span>
+                            {% else %}
+                            <span class="badge bg-secondary">禁用</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ res.created_at.strftime('%Y-%m-%d') }}</td>
+                        <td>
+                            <div class="btn-group" role="group">
+                                <a href="{{ url_for('reservation.recurring_edit', id=res.id) }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-edit"></i> 编辑
+                                </a>
+                                <form method="POST" action="{{ url_for('reservation.recurring_delete', id=res.id) }}" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="您确定要删除这个循环预约吗？">
+                                        <i class="fas fa-trash"></i> 删除
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> 您还没有设置任何每周循环预约。
+        </div>
+        <div class="text-center my-4">
+            <p>
+                循环预约允许您每周自动预约相同的琴房和时间。
+                只需设置一次，系统会自动处理后续预约！
+            </p>
+            <a href="{{ url_for('reservation.recurring_create') }}" class="btn btn-primary">
+                <i class="fas fa-plus-circle"></i> 创建您的第一个循环预约
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5>关于每周循环预约</h5>
+    </div>
+    <div class="card-body">
+        <p>
+            <i class="fas fa-info-circle text-primary"></i>
+            循环预约在每天 <strong>21:30</strong> 自动处理，用于第二天的时段。
+        </p>
+
+        <h6>工作原理：</h6>
+        <ol>
+            <li>您创建一个特定星期几的循环预约（例如，每周一）。</li>
+            <li>系统将在预约开放时间自动尝试预约该琴房。</li>
+            <li>如果预约成功，您将收到确认通知（如果已启用）。</li>
+            <li>如果预约失败（通常因为他人先预约），您将收到失败通知。</li>
+        </ol>
+
+        <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>注意：</strong> 系统遵守 CCOM 对每个用户每天 {{ current_app.config['MAX_DAILY_RESERVATIONS'] }} 个预约的限制。
+            如果您在同一天有超过 {{ current_app.config['MAX_DAILY_RESERVATIONS'] }} 个循环预约，只有前 {{ current_app.config['MAX_DAILY_RESERVATIONS'] }} 个会被处理。
+        </div>
+    </div>
+</div>
+{% endblock %}

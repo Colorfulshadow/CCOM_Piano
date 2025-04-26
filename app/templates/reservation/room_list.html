@@ -1,0 +1,179 @@
+{% extends 'base.html' %}
+
+{% block title %}可用琴房 - CCOM 钢琴预约{% endblock %}
+
+{% block styles %}
+<style>
+    .room-filter {
+        border-radius: 20px;
+        padding: 5px 15px;
+        margin-right: 5px;
+        margin-bottom: 5px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .room-filter:hover, .room-filter.active {
+        background-color: var(--primary-color);
+        color: white;
+    }
+
+    .room-instruments {
+        font-size: 0.8rem;
+        color: #666;
+    }
+
+    .partition-title {
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #eee;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h1>可用练习琴房</h1>
+        <p class="lead">浏览中央音乐学院所有琴房</p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <a href="{{ url_for('reservation.one_time_create') }}" class="btn btn-primary">
+            <i class="fas fa-calendar-plus"></i> 预约琴房
+        </a>
+    </div>
+</div>
+
+<!-- 筛选控件 -->
+<div class="card mb-4">
+    <div class="card-body">
+        <h5 class="mb-3">筛选琴房</h5>
+
+        <div class="mb-3">
+            <div class="input-group">
+                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                <input type="text" class="form-control" id="room-search" placeholder="按名称或乐器搜索...">
+            </div>
+        </div>
+
+        <div>
+            <span class="fw-bold me-2">乐器类型：</span>
+            <div class="d-inline-block">
+                <span class="room-filter active" data-filter="all">全部</span>
+                <span class="room-filter" data-filter="立式钢琴">立式钢琴</span>
+                <span class="room-filter" data-filter="三角钢琴">三角钢琴</span>
+                <span class="room-filter" data-filter="双钢">双钢</span>
+                <span class="room-filter" data-filter="无钢琴">无钢琴</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 琴房列表 -->
+<div class="row">
+    {% for partition, rooms in partitions.items() %}
+    <div class="col-12 partition-section" id="partition-{{ partition }}">
+        <h3 class="partition-title">{{ partition }}</h3>
+
+        <div class="row">
+            {% for room in rooms %}
+            <div class="col-md-4 col-lg-3 mb-4 room-card-container"
+                 data-name="{{ room.name }}"
+                 data-instruments="{{ room.instruments }}">
+                <div class="card room-card">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ room.name }}</h5>
+                        <p class="card-text room-instruments">
+                            <i class="fas fa-music"></i> {{ room.instruments or '未指定乐器' }}
+                        </p>
+                        <div class="d-grid">
+                            <a href="{{ url_for('reservation.one_time_create') }}?room_id={{ room.id }}" class="btn btn-sm btn-outline-primary">
+                                预约
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- 无结果提示 -->
+<div id="no-results-message" class="alert alert-info text-center d-none">
+    <i class="fas fa-search"></i> 没有符合您搜索条件的琴房。请尝试不同的筛选条件。
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('room-search');
+        const filterButtons = document.querySelectorAll('.room-filter');
+        const roomCards = document.querySelectorAll('.room-card-container');
+        const partitionSections = document.querySelectorAll('.partition-section');
+        const noResultsMessage = document.getElementById('no-results-message');
+
+        let activeFilter = 'all';
+
+        // 根据搜索输入和活动筛选器筛选琴房
+        function filterRooms() {
+            const searchText = searchInput.value.toLowerCase();
+            let visibleCount = 0;
+
+            // 重置分区可见性
+            partitionSections.forEach(section => {
+                section.style.display = 'block';
+                section.querySelector('.row').style.display = 'flex';
+            });
+
+            // 筛选琴房
+            roomCards.forEach(card => {
+                const name = card.dataset.name.toLowerCase();
+                const instruments = card.dataset.instruments.toLowerCase();
+                const matchesSearch = name.includes(searchText) || instruments.includes(searchText);
+                const matchesFilter = activeFilter === 'all' || instruments.includes(activeFilter);
+
+                if (matchesSearch && matchesFilter) {
+                    card.style.display = 'block';
+                    visibleCount++;
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+
+            // 隐藏没有可见琴房的分区
+            partitionSections.forEach(section => {
+                const visibleRooms = section.querySelectorAll('.room-card-container[style="display: block;"]');
+                if (visibleRooms.length === 0) {
+                    section.style.display = 'none';
+                }
+            });
+
+            // 显示/隐藏无结果消息
+            if (visibleCount === 0) {
+                noResultsMessage.classList.remove('d-none');
+            } else {
+                noResultsMessage.classList.add('d-none');
+            }
+        }
+
+        // 事件监听器
+        searchInput.addEventListener('input', filterRooms);
+
+        filterButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                // 更新活动筛选器
+                filterButtons.forEach(btn => btn.classList.remove('active'));
+                this.classList.add('active');
+                activeFilter = this.dataset.filter;
+
+                // 应用筛选器
+                filterRooms();
+            });
+        });
+    });
+</script>
+{% endblock %}

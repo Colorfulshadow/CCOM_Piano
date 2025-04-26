@@ -1,0 +1,117 @@
+{% extends 'base.html' %}
+
+{% block title %}编辑循环预约 - CCOM 钢琴预约{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h1>编辑每周循环预约</h1>
+        <p class="lead">更新您的自动每周预约</p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <a href="{{ url_for('reservation.recurring_list') }}" class="btn btn-outline-primary">
+            <i class="fas fa-arrow-left"></i> 返回列表
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5>预约详情</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('reservation.recurring_edit', id=reservation.id) }}">
+                    <div class="mb-3">
+                        <label for="day_of_week" class="form-label">星期几</label>
+                        <select class="form-select" id="day_of_week" name="day_of_week" required>
+                            <option value="0" {% if reservation.day_of_week == 0 %}selected{% endif %}>星期一</option>
+                            <option value="1" {% if reservation.day_of_week == 1 %}selected{% endif %}>星期二</option>
+                            <option value="2" {% if reservation.day_of_week == 2 %}selected{% endif %}>星期三</option>
+                            <option value="3" {% if reservation.day_of_week == 3 %}selected{% endif %}>星期四</option>
+                            <option value="4" {% if reservation.day_of_week == 4 %}selected{% endif %}>星期五</option>
+                            <option value="5" {% if reservation.day_of_week == 5 %}selected{% endif %}>星期六</option>
+                            <option value="6" {% if reservation.day_of_week == 6 %}selected{% endif %}>星期日</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="room_id" class="form-label">琴房</label>
+                        <select class="form-select" id="room_id" name="room_id" required>
+                            {% for room in rooms %}
+                            <option value="{{ room.id }}" {% if room.id == reservation.room_id %}selected{% endif %}>
+                                {{ room.name }} - {{ room.instruments }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="start_time_display" class="form-label">开始时间</label>
+                            <input type="time" class="form-control" id="start_time_display" name="start_time_display"
+                                   data-target="start_time" value="{{ formatted_start }}" required>
+                            <input type="hidden" name="start_time" id="start_time" value="{{ reservation.start_time }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="end_time_display" class="form-label">结束时间</label>
+                            <input type="time" class="form-control" id="end_time_display" name="end_time_display"
+                                   data-target="end_time" value="{{ formatted_end }}" required>
+                            <input type="hidden" name="end_time" id="end_time" value="{{ reservation.end_time }}">
+                        </div>
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="is_active" name="is_active"
+                               {% if reservation.is_active %}checked{% endif %}>
+                        <label class="form-check-label" for="is_active">启用</label>
+                        <div class="form-text">未启用的预约不会自动处理。</div>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        最长预约时间为 <strong>{{ current_app.config['MAX_RESERVATION_HOURS'] }} 小时</strong>。
+                        系统将在每周所选日期自动尝试预约该琴房。
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> 更新预约
+                        </button>
+
+                        <a href="{{ url_for('reservation.recurring_list') }}" class="btn btn-outline-secondary">
+                            取消
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize time inputs
+        const startTimeDisplay = document.getElementById('start_time_display');
+        const endTimeDisplay = document.getElementById('end_time_display');
+        const startTimeHidden = document.getElementById('start_time');
+        const endTimeHidden = document.getElementById('end_time');
+        
+        // Function to update hidden fields when visible time inputs change
+        function updateHiddenTime(displayElement, hiddenElement) {
+            displayElement.addEventListener('change', function() {
+                if (this.value) {
+                    // Convert HH:MM to HHMM
+                    hiddenElement.value = this.value.replace(':', '');
+                }
+            });
+        }
+        
+        updateHiddenTime(startTimeDisplay, startTimeHidden);
+        updateHiddenTime(endTimeDisplay, endTimeHidden);
+    });
+</script>
+{% endblock %}
