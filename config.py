@@ -1,82 +1,41 @@
-import json
+"""
+@Author: Tianyi Zhang
+@Date: 2025/4/26
+@Description: 
+"""
 import os
+from datetime import timedelta
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+basedir = os.path.abspath(os.path.dirname(__file__))
+load_dotenv(os.path.join(os.path.dirname(basedir), '.env'))
 
 
 class Config:
-    __slots__ = ('path', '_username', '_password', '_token', '_send_keys')
+    # Flask configuration
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'you-should-change-this-in-production'
 
-    def __init__(self):
-        self.path = os.path.join(os.path.dirname(__file__), 'config.json')
-        self._username = ''
-        self._password = ''
-        self._token = ''
-        self._send_keys = []
-        if not os.path.exists(self.path):
-            self._save()
-            print("please fill config.json with username and password")
-            exit(0)
-        self._load()
-        if not self._username or not self._password:
-            print("please fill config.json with username and password")
-            exit(0)
+    # Database configuration
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'mysql+pymysql://root:zty20030204@localhost/ccom_piano'
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    def _save(self):
-        c = {
-            'username': self._username,
-            'password': self._password,
-            'token': self._token,
-            'send_keys': self._send_keys
-        }
-        with open(self.path, 'w') as f:
-            json.dump(c, f, indent=4)
+    # Application specific configuration
+    CCOM_API_ROOT = "https://saas.tansiling.com"
+    CCOM_API_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.109 Safari"
+    BEIJING_TIMEZONE_OFFSET = 8  # UTC+8
 
-    def _load(self):
-        with open(self.path, 'r') as f:
-            j = json.load(f)
-            self._username = j['username']
-            self._password = j['password']
-            self._token = j['token']
-            self._send_keys = j['send_keys']
+    # APScheduler configuration
+    SCHEDULER_API_ENABLED = True
+    SCHEDULER_TIMEZONE = "Asia/Shanghai"
 
-    @property
-    def username(self):
-        return self._username
+    # Notification settings
+    NOTIFICATION_ENABLED = True
 
-    @username.setter
-    def username(self, value):
-        self._username = value
-        self._save()
+    # Reservation settings
+    MAX_DAILY_RESERVATIONS = 2
+    MAX_RESERVATION_HOURS = 3
+    RESERVATION_OPEN_TIME = "2130"  # 9:30 PM Beijing time
 
-    @property
-    def password(self):
-        return self._password
-
-    @password.setter
-    def password(self, value):
-        self._password = value
-        self._save()
-
-    @property
-    def token(self):
-        return self._token
-
-    @token.setter
-    def token(self, value):
-        self._token = value
-        self._save()
-
-    @property
-    def send_keys(self):
-        return self._send_keys
-
-    @send_keys.setter
-    def send_keys(self, values):
-        self._send_keys = values
-        self._save()
-
-
-config = Config()
-
-root = "https://saas.tansiling.com"
-
-ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.109 Safar"
+    # Session settings
+    PERMANENT_SESSION_LIFETIME = timedelta(days=7)
