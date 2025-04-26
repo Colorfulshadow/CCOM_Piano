@@ -2,6 +2,83 @@
 
 {% block title %}创建一次性预约 - CCOM 钢琴预约{% endblock %}
 
+{% block styles %}
+<style>
+    .time-point {
+        padding: 8px;
+        text-align: center;
+        cursor: pointer;
+        margin-bottom: 5px;
+        border-radius: 4px;
+        transition: all 0.2s;
+        background-color: #f8f9fa;
+        border: 1px solid #ddd;
+    }
+
+    .time-point:hover {
+        background-color: #e9ecef;
+    }
+
+    .time-point.start-point {
+        background-color: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
+    }
+
+    .time-point.end-point {
+        background-color: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
+    }
+
+    .time-point.between-point {
+        background-color: rgba(63, 81, 181, 0.2);
+        border-color: var(--primary-color);
+    }
+
+    .time-point.disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        background-color: #f1f1f1;
+    }
+
+    .time-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 8px;
+        margin-bottom: 20px;
+    }
+
+    /* Room Search Component Styles */
+    .room-search-wrapper {
+        margin-bottom: 1rem;
+    }
+
+    .room-search-dropdown {
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+
+    .room-item {
+        transition: background-color 0.2s ease;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .room-item:last-child {
+        border-bottom: none;
+    }
+
+    .room-item:hover {
+        background-color: #f8f9fa;
+    }
+
+    .room-item.selected {
+        background-color: #e9ecef;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="row mb-4">
     <div class="col-md-8">
@@ -81,18 +158,34 @@
                         </select>
                     </div>
 
+                    <div class="mb-3">
+                        <label class="form-label">选择时间段（点击开始和结束时间）</label>
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i> 先点击开始时间，再点击结束时间来选择您的预约时间段。每个时间点间隔为30分钟，最长预约时间为3小时。
+                        </div>
+
+                        <div class="time-grid" id="time-grid">
+                            <!-- 将由JavaScript填充时间点 -->
+                        </div>
+                    </div>
+
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <label for="start_time_display" class="form-label">开始时间</label>
-                            <input type="time" class="form-control" id="start_time_display" name="start_time_display"
-                                   data-target="start_time" required>
+                            <label for="display_start_time" class="form-label">开始时间</label>
+                            <input type="text" class="form-control" id="display_start_time" readonly>
                             <input type="hidden" name="start_time" id="start_time">
                         </div>
                         <div class="col-md-6">
-                            <label for="end_time_display" class="form-label">结束时间</label>
-                            <input type="time" class="form-control" id="end_time_display" name="end_time_display"
-                                   data-target="end_time" required>
+                            <label for="display_end_time" class="form-label">结束时间</label>
+                            <input type="text" class="form-control" id="display_end_time" readonly>
                             <input type="hidden" name="end_time" id="end_time">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">已选择的时长</label>
+                        <div class="progress">
+                            <div class="progress-bar" id="duration-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0小时</div>
                         </div>
                     </div>
 
@@ -113,7 +206,7 @@
                     </div>
 
                     <div class="d-grid">
-                        <button type="submit" class="btn btn-primary">
+                        <button type="submit" class="btn btn-primary" id="submit-btn">
                             <i class="fas fa-save"></i> 创建请求
                         </button>
                     </div>
@@ -125,40 +218,577 @@
 {% endblock %}
 
 {% block scripts %}
+<!-- Room Search Component -->
+<script>
+/**
+ * Room Search Component
+ *
+ * This script replaces standard select dropdowns for room selection with
+ * a searchable dropdown that allows users to filter rooms by typing.
+ */
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize searchable room dropdowns
+    initRoomSearch('room_id');
+    initRoomSearch('availability_room');
+
+    /**
+     * Initialize a searchable room dropdown for the specified select element
+     * @param {string} selectId - The ID of the select element to enhance
+     */
+    function initRoomSearch(selectId) {
+        const selectElement = document.getElementById(selectId);
+        if (!selectElement) return;
+
+        // Create wrapper container
+        const wrapper = document.createElement('div');
+        wrapper.className = 'room-search-wrapper position-relative';
+        selectElement.parentNode.insertBefore(wrapper, selectElement);
+
+        // Move the label if it exists
+        const labelElement = document.querySelector(`label[for="${selectId}"]`);
+        if (labelElement) {
+            wrapper.appendChild(labelElement.cloneNode(true));
+            labelElement.style.display = 'none';
+        }
+
+        // Create search input
+        const searchInput = document.createElement('input');
+        searchInput.type = 'text';
+        searchInput.className = 'form-control room-search-input';
+        searchInput.placeholder = '搜索琴房名称或乐器...';
+        searchInput.setAttribute('autocomplete', 'off');
+        wrapper.appendChild(searchInput);
+
+        // Create dropdown container
+        const dropdown = document.createElement('div');
+        dropdown.className = 'room-search-dropdown position-absolute w-100 mt-1 bg-white border rounded shadow-sm d-none';
+        dropdown.style.maxHeight = '250px';
+        dropdown.style.overflowY = 'auto';
+        dropdown.style.zIndex = '1000';
+        wrapper.appendChild(dropdown);
+
+        // Hide original select
+        selectElement.style.display = 'none';
+
+        // Get all room options
+        const options = Array.from(selectElement.options).filter(option => option.value !== '');
+        const rooms = options.map(option => ({
+            id: option.value,
+            text: option.textContent,
+            selected: option.selected
+        }));
+
+        // Add rooms to dropdown
+        populateDropdown(rooms, dropdown);
+
+        // Set initial value if there's a selected option
+        const selectedOption = selectElement.options[selectElement.selectedIndex];
+        if (selectedOption && selectedOption.value) {
+            searchInput.value = selectedOption.textContent;
+        }
+
+        // Event: Input - Filter rooms
+        searchInput.addEventListener('input', function() {
+            const query = this.value.toLowerCase();
+            const filteredRooms = rooms.filter(room =>
+                room.text.toLowerCase().includes(query)
+            );
+
+            dropdown.classList.remove('d-none');
+            populateDropdown(filteredRooms, dropdown);
+
+            // Show "no results" message if no matches
+            if (filteredRooms.length === 0) {
+                const noResults = document.createElement('div');
+                noResults.className = 'p-2 text-muted';
+                noResults.textContent = '没有找到匹配的琴房';
+                dropdown.appendChild(noResults);
+            }
+        });
+
+        // Event: Focus - Show dropdown
+        searchInput.addEventListener('focus', function() {
+            dropdown.classList.remove('d-none');
+        });
+
+        // Event: Click outside - Hide dropdown
+        document.addEventListener('click', function(e) {
+            if (!wrapper.contains(e.target)) {
+                dropdown.classList.add('d-none');
+            }
+        });
+
+        // Event: Select room item
+        dropdown.addEventListener('click', function(e) {
+            const item = e.target.closest('.room-item');
+            if (item) {
+                const roomId = item.dataset.id;
+                const roomText = item.textContent;
+
+                // Update input display
+                searchInput.value = roomText;
+
+                // Update original select
+                selectElement.value = roomId;
+
+                // Trigger change event on select
+                const event = new Event('change', { bubbles: true });
+                selectElement.dispatchEvent(event);
+
+                // Hide dropdown
+                dropdown.classList.add('d-none');
+            }
+        });
+    }
+
+    /**
+     * Populate dropdown with room items
+     * @param {Array} rooms - List of room objects to display
+     * @param {HTMLElement} dropdown - The dropdown container element
+     */
+    function populateDropdown(rooms, dropdown) {
+        // Clear dropdown
+        dropdown.innerHTML = '';
+
+        // Add room items
+        rooms.forEach(room => {
+            const item = document.createElement('div');
+            item.className = 'room-item p-2 cursor-pointer';
+            item.style.cursor = 'pointer';
+            item.dataset.id = room.id;
+            item.textContent = room.text;
+
+            // Highlight on hover
+            item.addEventListener('mouseover', function() {
+                this.classList.add('bg-light');
+            });
+
+            item.addEventListener('mouseout', function() {
+                this.classList.remove('bg-light');
+            });
+
+            dropdown.appendChild(item);
+        });
+    }
+});
+</script>
+
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Initialize time inputs
-        const startTimeDisplay = document.getElementById('start_time_display');
-        const endTimeDisplay = document.getElementById('end_time_display');
-        const startTimeHidden = document.getElementById('start_time');
-        const endTimeHidden = document.getElementById('end_time');
-        
-        // Function to update hidden fields when visible time inputs change
-        function updateHiddenTime(displayElement, hiddenElement) {
-            displayElement.addEventListener('change', function() {
-                if (this.value) {
-                    // Convert HH:MM to HHMM
-                    hiddenElement.value = this.value.replace(':', '');
+        // 时间点配置
+        const startHour = 7; // 7:00 AM
+        const endHour = 24;  // 12:00 AM
+        const timePoints = [];
+        const maxReservationHours = {{ current_app.config['MAX_RESERVATION_HOURS'] }};
+
+        // 生成时间点（每半小时一个）
+        for (let hour = startHour; hour <= endHour; hour++) {
+            // 整点
+            timePoints.push({
+                displayTime: `${hour}:00`,
+                value: `${hour.toString().padStart(2, '0')}00`
+            });
+
+            // 半点 (不包括末尾的24:30)
+            if (hour < endHour) {
+                timePoints.push({
+                    displayTime: `${hour}:30`,
+                    value: `${hour.toString().padStart(2, '0')}30`
+                });
+            }
+        }
+
+        // 当前选择状态
+        const selection = {
+            selectionMode: 'none', // none, start, end
+            startTimeIndex: null,
+            endTimeIndex: null,
+            duration: 0
+        };
+
+        // 填充时间点到界面
+        function populateTimePoints() {
+            const grid = document.getElementById('time-grid');
+
+            timePoints.forEach((point, index) => {
+                const timePoint = document.createElement('div');
+                timePoint.className = 'time-point';
+                timePoint.dataset.index = index;
+                timePoint.dataset.time = point.value;
+                timePoint.textContent = point.displayTime;
+                timePoint.addEventListener('click', function() {
+                    handleTimePointClick(this);
+                });
+                grid.appendChild(timePoint);
+            });
+        }
+
+        // 处理时间点点击
+        function handleTimePointClick(element) {
+            const index = parseInt(element.dataset.index);
+
+            // 如果之前没有选择，这是开始时间
+            if (selection.selectionMode === 'none') {
+                // 清除之前的所有选择
+                clearSelection();
+
+                // 设置为开始点
+                element.classList.add('start-point');
+                selection.startTimeIndex = index;
+                selection.selectionMode = 'start';
+
+                // 更新显示
+                updateTimeDisplay();
+            }
+            // 如果已选择了开始时间，这是结束时间
+            else if (selection.selectionMode === 'start') {
+                // 确保结束时间在开始时间之后
+                if (index <= selection.startTimeIndex) {
+                    alert('结束时间必须在开始时间之后');
+                    return;
+                }
+
+                // 计算时长
+                const startTime = timePoints[selection.startTimeIndex].value;
+                const endTime = timePoints[index].value;
+                const duration = calculateDuration(startTime, endTime);
+
+                // 检查是否超过单个预约的最大时长
+                if (duration > maxReservationHours) {
+                    alert(`单个预约时段最长为${maxReservationHours}小时`);
+                    return;
+                }
+
+                // 设置为结束点
+                element.classList.add('end-point');
+                selection.endTimeIndex = index;
+                selection.selectionMode = 'end';
+                selection.duration = duration;
+
+                // 设置中间点的样式
+                highlightBetweenPoints();
+
+                // 更新显示
+                updateTimeDisplay();
+            }
+            // 如果已经完成选择，重新开始
+            else if (selection.selectionMode === 'end') {
+                // 清除之前的所有选择
+                clearSelection();
+
+                // 设置为开始点
+                element.classList.add('start-point');
+                selection.startTimeIndex = index;
+                selection.selectionMode = 'start';
+                selection.duration = 0;
+
+                // 更新显示
+                updateTimeDisplay();
+            }
+        }
+
+        // 高亮显示开始点和结束点之间的时间点
+        function highlightBetweenPoints() {
+            if (selection.startTimeIndex === null || selection.endTimeIndex === null) return;
+
+            const minIndex = Math.min(selection.startTimeIndex, selection.endTimeIndex);
+            const maxIndex = Math.max(selection.startTimeIndex, selection.endTimeIndex);
+
+            // 选择所有在范围内的时间点（不包括开始和结束点）
+            const timePoints = document.querySelectorAll('.time-point');
+
+            timePoints.forEach((point) => {
+                const index = parseInt(point.dataset.index);
+                if (index > minIndex && index < maxIndex) {
+                    point.classList.add('between-point');
                 }
             });
         }
-        
-        updateHiddenTime(startTimeDisplay, startTimeHidden);
-        updateHiddenTime(endTimeDisplay, endTimeHidden);
-        
-        // Link availability form with reservation form
-        const availabilityRoom = document.getElementById('availability_room');
-        const availabilityDate = document.getElementById('availability_date');
-        const reservationRoom = document.getElementById('room_id');
-        const reservationDate = document.getElementById('date');
-        
-        availabilityRoom.addEventListener('change', function() {
-            reservationRoom.value = this.value;
+
+        // 清除所有选择
+        function clearSelection() {
+            const timePoints = document.querySelectorAll('.time-point');
+
+            timePoints.forEach((point) => {
+                point.classList.remove('start-point', 'end-point', 'between-point');
+            });
+
+            // 重置选择状态
+            selection.startTimeIndex = null;
+            selection.endTimeIndex = null;
+            selection.selectionMode = 'none';
+            selection.duration = 0;
+
+            // 清除显示
+            document.getElementById('display_start_time').value = '';
+            document.getElementById('display_end_time').value = '';
+            document.getElementById('start_time').value = '';
+            document.getElementById('end_time').value = '';
+
+            // 更新进度条
+            const durationBar = document.getElementById('duration-bar');
+            durationBar.style.width = '0%';
+            durationBar.textContent = '0小时';
+            durationBar.setAttribute('aria-valuenow', 0);
+
+            // 禁用提交按钮
+            document.getElementById('submit-btn').disabled = true;
+        }
+
+        // 更新时间显示
+        function updateTimeDisplay() {
+            if (selection.selectionMode === 'none') {
+                document.getElementById('display_start_time').value = '';
+                document.getElementById('display_end_time').value = '';
+                document.getElementById('start_time').value = '';
+                document.getElementById('end_time').value = '';
+                return;
+            }
+
+            if (selection.startTimeIndex !== null) {
+                const startTime = timePoints[selection.startTimeIndex];
+                document.getElementById('display_start_time').value = startTime.displayTime;
+                document.getElementById('start_time').value = startTime.value;
+            }
+
+            if (selection.endTimeIndex !== null) {
+                const endTime = timePoints[selection.endTimeIndex];
+                document.getElementById('display_end_time').value = endTime.displayTime;
+                document.getElementById('end_time').value = endTime.value;
+            }
+
+            // 如果已选择完整时段，更新进度条
+            if (selection.selectionMode === 'end' && selection.duration > 0) {
+                const percentage = (selection.duration / maxReservationHours) * 100;
+                const durationBar = document.getElementById('duration-bar');
+                durationBar.style.width = `${percentage}%`;
+                durationBar.textContent = `${selection.duration} 小时`;
+                durationBar.setAttribute('aria-valuenow', percentage);
+
+                // 启用提交按钮
+                document.getElementById('submit-btn').disabled = false;
+            }
+        }
+
+        // 计算时长（小时）
+        function calculateDuration(startTime, endTime) {
+            const startHour = parseInt(startTime.substring(0, 2));
+            const startMinute = parseInt(startTime.substring(2, 4));
+            let endHour = parseInt(endTime.substring(0, 2));
+            const endMinute = parseInt(endTime.substring(2, 4));
+
+            // 处理跨天情况
+            if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
+                endHour += 24;
+            }
+
+            const startMinutes = startHour * 60 + startMinute;
+            const endMinutes = endHour * 60 + endMinute;
+
+            return (endMinutes - startMinutes) / 60;
+        }
+
+        // 处理预约类型变更（预约/取消）
+        document.getElementById('is_cancellation').addEventListener('change', function() {
+            const submitBtn = document.getElementById('submit-btn');
+            const actionText = this.checked ? '取消预约' : '创建预约';
+            submitBtn.innerHTML = `<i class="fas fa-save"></i> ${actionText}`;
         });
-        
-        availabilityDate.addEventListener('change', function() {
-            reservationDate.value = this.value;
+
+        // 表单验证
+        document.getElementById('reservation-form').querySelector('form').addEventListener('submit', function(event) {
+            const date = document.getElementById('date').value;
+            const roomId = document.getElementById('room_id').value;
+            const startTime = document.getElementById('start_time').value;
+            const endTime = document.getElementById('end_time').value;
+
+            if (!date) {
+                alert('请选择日期');
+                event.preventDefault();
+                return;
+            }
+
+            if (!roomId) {
+                alert('请选择琴房');
+                event.preventDefault();
+                return;
+            }
+
+            if (!startTime || !endTime) {
+                alert('请选择时间段');
+                event.preventDefault();
+                return;
+            }
         });
+
+        // 链接可用性查询与表单
+        document.getElementById('availability_room').addEventListener('change', function() {
+            document.getElementById('room_id').value = this.value;
+        });
+
+        document.getElementById('availability_date').addEventListener('change', function() {
+            document.getElementById('date').value = this.value;
+        });
+
+        // 处理预约可用性查询结果
+        window.displayAvailability = function(data) {
+            const container = document.getElementById('availability-container');
+            if (!container) return;
+
+            // 清除之前的内容
+            container.innerHTML = '';
+
+            if (!data.remainingTimeList || data.remainingTimeList.length === 0) {
+                container.innerHTML = '<div class="alert alert-info">该琴房在选中日期没有可用时段。</div>';
+                return;
+            }
+
+            // 创建一个表格来显示可用时段
+            let html = '<h6 class="mt-3">可用时段</h6>';
+            html += '<div class="table-responsive">';
+            html += '<table class="table table-hover">';
+            html += '<thead><tr><th>开始时间</th><th>结束时间</th><th>时长</th><th>操作</th></tr></thead>';
+            html += '<tbody>';
+
+            data.remainingTimeList.forEach(slot => {
+                // 转换时间戳为本地时间字符串
+                const startTime = new Date(slot.startTime);
+                const endTime = new Date(slot.endTime);
+
+                // 格式化时间为HH:MM
+                const startHour = startTime.getHours().toString().padStart(2, '0');
+                const startMinute = startTime.getMinutes().toString().padStart(2, '0');
+                const endHour = endTime.getHours().toString().padStart(2, '0');
+                const endMinute = endTime.getMinutes().toString().padStart(2, '0');
+
+                const startTimeStr = `${startHour}:${startMinute}`;
+                const endTimeStr = `${endHour}:${endMinute}`;
+
+                // 计算时长
+                const durationMinutes = (endTime - startTime) / (1000 * 60);
+                const hours = Math.floor(durationMinutes / 60);
+                const minutes = durationMinutes % 60;
+                const durationStr = `${hours}小时${minutes > 0 ? ` ${minutes}分钟` : ''}`;
+
+                // 添加行
+                html += `<tr>
+                    <td>${startTimeStr}</td>
+                    <td>${endTimeStr}</td>
+                    <td>${durationStr}</td>
+                    <td>
+                        <button type="button" class="btn btn-sm btn-primary select-time-btn"
+                                onclick="selectTimeSlot('${startHour}${startMinute}', '${endHour}${endMinute}')">
+                            选择
+                        </button>
+                    </td>
+                </tr>`;
+            });
+
+            html += '</tbody></table></div>';
+            container.innerHTML = html;
+        };
+
+        // 全局函数：选择时间段
+        window.selectTimeSlot = function(startTime, endTime) {
+            // 找到对应的时间点并触发点击
+            const timePoints = document.querySelectorAll('.time-point');
+
+            // 清除之前的选择
+            clearSelection();
+
+            // 找到开始时间点并触发点击
+            timePoints.forEach(point => {
+                if (point.dataset.time === startTime) {
+                    point.click();
+                }
+            });
+
+            // 找到结束时间点并触发点击
+            timePoints.forEach(point => {
+                if (point.dataset.time === endTime) {
+                    point.click();
+                }
+            });
+
+            // 滚动到表单
+            document.getElementById('reservation-form').scrollIntoView({ behavior: 'smooth' });
+        };
+
+        // 初始化
+        populateTimePoints();
+
+        // 如果URL中有预填充的琴房ID，自动选择
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomId = urlParams.get('room_id');
+        if (roomId) {
+            document.getElementById('room_id').value = roomId;
+            document.getElementById('availability_room').value = roomId;
+        }
+
+        // 初始禁用提交按钮
+        document.getElementById('submit-btn').disabled = true;
     });
+
+    // 检查琴房可用性
+    function checkRoomAvailability(roomId, date) {
+        if (!roomId || !date) {
+            showAlert('danger', '请选择琴房和日期');
+            return;
+        }
+
+        const availabilityContainer = document.getElementById('availability-container');
+        const loadingSpinner = document.getElementById('loading-spinner');
+
+        if (!availabilityContainer || !loadingSpinner) return;
+
+        // 显示加载动画
+        availabilityContainer.classList.add('d-none');
+        loadingSpinner.classList.remove('d-none');
+
+        // 发起API请求
+        fetch(`/reservation/check-availability?room_id=${roomId}&date=${date}`)
+            .then(response => response.json())
+            .then(data => {
+                // 隐藏加载动画
+                loadingSpinner.classList.add('d-none');
+                availabilityContainer.classList.remove('d-none');
+
+                if (data.error) {
+                    showAlert('danger', `错误: ${data.error}`);
+                    return;
+                }
+
+                // 显示可用性数据
+                displayAvailability(data);
+            })
+            .catch(error => {
+                // 隐藏加载动画
+                loadingSpinner.classList.add('d-none');
+
+                // 显示错误消息
+                showAlert('danger', `错误: ${error.message}`);
+            });
+    }
+
+    // 显示提示消息
+    function showAlert(type, message) {
+        const alertContainer = document.getElementById('alert-container');
+        if (!alertContainer) return;
+
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type} alert-dismissible fade show`;
+        alert.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+
+        alertContainer.appendChild(alert);
+
+        // 5秒后自动关闭
+        setTimeout(() => {
+            const bsAlert = new bootstrap.Alert(alert);
+            bsAlert.close();
+        }, 5000);
+    }
 </script>
 {% endblock %}
