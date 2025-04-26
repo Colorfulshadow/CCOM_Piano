@@ -1,0 +1,208 @@
+{% extends 'base.html' %}
+
+{% block title %}琴房管理 - 管理员 - CCOM 钢琴预约{% endblock %}
+
+{% block content %}
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1>琴房管理</h1>
+            <p class="lead">管理练习琴房及其详细信息</p>
+        </div>
+        <div class="col-md-4 text-md-end">
+            <div class="btn-group">
+                <a href="{{ url_for('admin.import_rooms') }}" class="btn btn-primary">
+                    <i class="fas fa-file-import"></i> 导入琴房
+                </a>
+                <a href="{{ url_for('admin.index') }}" class="btn btn-outline-primary">
+                    <i class="fas fa-arrow-left"></i> 返回控制面板
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 搜索和筛选 -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fas fa-search"></i></span>
+                        <input type="text" class="form-control" id="room-search" placeholder="搜索琴房...">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <select class="form-select" id="partition-filter">
+                        <option value="all">所有分区</option>
+                        {% set partitions = [] %}
+                        {% for room in rooms %}
+                            {% if room.partition not in partitions %}
+                                {% set _ = partitions.append(room.partition) %}
+                                <option value="{{ room.partition }}">{{ room.partition }}</option>
+                            {% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 琴房列表 -->
+    <div class="card">
+        <div class="card-header">
+            <h5>琴房列表</h5>
+        </div>
+        <div class="card-body">
+            {% if rooms %}
+                <div class="table-responsive">
+                    <table class="table table-hover" id="rooms-table">
+                        <thead>
+                        <tr>
+                            <th>CCOM ID</th>
+                            <th>名称</th>
+                            <th>分区</th>
+                            <th>乐器</th>
+                            <th>有钢琴</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for room in rooms %}
+                            <tr class="room-row" data-partition="{{ room.partition }}" data-name="{{ room.name }}" data-instruments="{{ room.instruments }}">
+                                <td>{{ room.ccom_id }}</td>
+                                <td>{{ room.name }}</td>
+                                <td>{{ room.partition }}</td>
+                                <td>{{ room.instruments }}</td>
+                                <td>
+                                    {% if "无钢琴" not in room.instruments %}
+                                        <span class="badge bg-success">是</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">否</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div id="no-rooms-message" class="alert alert-info d-none">
+                    <i class="fas fa-info-circle"></i> 没有符合您搜索条件的琴房。
+                </div>
+            {% else %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i> 系统中没有找到琴房。
+                    <a href="{{ url_for('admin.import_rooms') }}" class="alert-link">导入琴房</a> 以开始使用。
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 琴房统计 -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <h5>琴房统计</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="stats-counter">
+                        <div class="counter-value">{{ rooms|length }}</div>
+                        <div class="counter-label">琴房总数</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="stats-counter">
+                        <div class="counter-value">
+                            {{ rooms | selectattr('instruments', 'defined') | rejectattr('instruments', 'equalto', '无钢琴') | list | length }}
+                        </div>
+                        <div class="counter-label">有钢琴的琴房</div>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="stats-counter">
+                        <div class="counter-value">
+                            {{ rooms | selectattr('instruments', 'defined') | selectattr('instruments', 'in', ['三角钢琴']) | list | length }}
+                        </div>
+                        <div class="counter-label">三角钢琴</div>
+                    </div>
+                </div>
+
+
+            </div>
+
+            <!-- 分区分布 -->
+            <h6 class="mt-4">按分区的琴房</h6>
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead>
+                    <tr>
+                        <th>分区</th>
+                        <th>琴房数量</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% set partitions = {} %}
+                    {% for room in rooms %}
+                        {% if room.partition in partitions %}
+                            {% set _ = partitions.update({room.partition: partitions[room.partition] + 1}) %}
+                        {% else %}
+                            {% set _ = partitions.update({room.partition: 1}) %}
+                        {% endif %}
+                    {% endfor %}
+
+                    {% for partition, count in partitions.items() %}
+                        <tr>
+                            <td>{{ partition }}</td>
+                            <td>{{ count }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const roomSearch = document.getElementById('room-search');
+            const partitionFilter = document.getElementById('partition-filter');
+            const roomRows = document.querySelectorAll('.room-row');
+            const noRoomsMessage = document.getElementById('no-rooms-message');
+
+            function filterRooms() {
+                const searchTerm = roomSearch.value.toLowerCase();
+                const partitionValue = partitionFilter.value;
+
+                let visibleCount = 0;
+
+                roomRows.forEach(row => {
+                    const name = row.dataset.name.toLowerCase();
+                    const instruments = row.dataset.instruments.toLowerCase();
+                    const partition = row.dataset.partition;
+
+                    const matchesSearch = name.includes(searchTerm) || instruments.includes(searchTerm);
+                    const matchesPartition = partitionValue === 'all' || partition === partitionValue;
+
+                    if (matchesSearch && matchesPartition) {
+                        row.style.display = '';
+                        visibleCount++;
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+
+                // 显示/隐藏无结果消息
+                if (visibleCount === 0) {
+                    noRoomsMessage.classList.remove('d-none');
+                } else {
+                    noRoomsMessage.classList.add('d-none');
+                }
+            }
+
+            // 添加事件监听器
+            roomSearch.addEventListener('input', filterRooms);
+            partitionFilter.addEventListener('change', filterRooms);
+        });
+    </script>
+{% endblock %}

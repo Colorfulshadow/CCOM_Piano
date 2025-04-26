@@ -1,0 +1,213 @@
+{% extends 'base.html' %}
+
+{% block title %}系统设置 - 管理员 - CCOM 钢琴预约{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h1>系统设置</h1>
+        <p class="lead">管理系统配置和维护任务</p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <a href="{{ url_for('admin.index') }}" class="btn btn-outline-primary">
+            <i class="fas fa-arrow-left"></i> 返回控制面板
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <!-- 左栏：系统信息和维护 -->
+    <div class="col-lg-6">
+        <!-- 服务器信息 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>服务器信息</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <tr>
+                            <th width="40%">服务器时间：</th>
+                            <td id="server-time">检查中...</td>
+                        </tr>
+                        <tr>
+                            <th>本地时间：</th>
+                            <td id="local-time">检查中...</td>
+                        </tr>
+                        <tr>
+                            <th>网络延迟：</th>
+                            <td id="latency">检查中...</td>
+                        </tr>
+                        <tr>
+                            <th>下次预约时间：</th>
+                            <td id="next-reservation-time">检查中...</td>
+                        </tr>
+                    </table>
+                </div>
+
+                <div class="d-grid mt-3">
+                    <button type="button" class="btn btn-outline-primary" onclick="checkServerTime()">
+                        <i class="fas fa-sync"></i> 刷新服务器信息
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 系统维护 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>系统维护</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>警告：</strong> 这些操作可能会影响系统运行。请谨慎使用。
+                </div>
+
+                <div class="list-group">
+                    <a href="#" class="list-group-item list-group-item-action disabled">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">数据库备份</h6>
+                            <small class="text-muted">仅限管理员</small>
+                        </div>
+                        <p class="mb-1">创建数据库备份以妥善保存。</p>
+                        <small class="text-muted">状态：尚未实现</small>
+                    </a>
+
+                    <a href="#" class="list-group-item list-group-item-action disabled">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">清理旧历史记录</h6>
+                            <small class="text-muted">仅限管理员</small>
+                        </div>
+                        <p class="mb-1">删除早于指定日期的预约历史记录。</p>
+                        <small class="text-muted">状态：尚未实现</small>
+                    </a>
+
+                    <a href="#" class="list-group-item list-group-item-action disabled">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">重启调度器</h6>
+                            <small class="text-muted">仅限管理员</small>
+                        </div>
+                        <p class="mb-1">如果任务调度器工作不正常，请重新启动它。</p>
+                        <small class="text-muted">状态：尚未实现</small>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 右栏：测试工具 -->
+    <div class="col-lg-6">
+        <!-- 测试预约处理 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>测试预约处理</h5>
+            </div>
+            <div class="card-body">
+                <p>
+                    此工具允许您手动执行预约处理。
+                    它将处理明天的循环和一次性预约。
+                </p>
+
+                <form method="POST" action="{{ url_for('admin.test_reservation') }}">
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="send_notifications" name="send_notifications">
+                        <label class="form-check-label" for="send_notifications">向用户发送通知</label>
+                        <div class="form-text">如果选中，用户将收到有关结果的推送通知。</div>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>注意：</strong> 这不会影响在 21:30 自动运行的计划进程。
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-play"></i> 运行预约处理
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- 系统配置 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>系统配置</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info mb-3">
+                    <i class="fas fa-info-circle"></i>
+                    目前，配置更改需要修改 <code>config.py</code> 文件并重新启动应用程序。
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table">
+                        <tr>
+                            <th>每日最大预约数：</th>
+                            <td>{{ current_app.config['MAX_DAILY_RESERVATIONS'] }}</td>
+                        </tr>
+                        <tr>
+                            <th>最长预约时间(小时)：</th>
+                            <td>{{ current_app.config['MAX_RESERVATION_HOURS'] }}</td>
+                        </tr>
+                        <tr>
+                            <th>预约开放时间：</th>
+                            <td>{{ current_app.config['RESERVATION_OPEN_TIME'][:2] }}:{{ current_app.config['RESERVATION_OPEN_TIME'][2:] }}</td>
+                        </tr>
+                        <tr>
+                            <th>通知已启用：</th>
+                            <td>{{ '是' if current_app.config['NOTIFICATION_ENABLED'] else '否' }}</td>
+                        </tr>
+                        <tr>
+                            <th>CCOM API 根路径：</th>
+                            <td>{{ current_app.config['CCOM_API_ROOT'] }}</td>
+                        </tr>
+                        <tr>
+                            <th>调度器时区：</th>
+                            <td>{{ current_app.config['SCHEDULER_TIMEZONE'] }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 计划任务 -->
+        <div class="card">
+            <div class="card-header">
+                <h5>计划任务</h5>
+            </div>
+            <div class="card-body">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>任务</th>
+                            <th>计划</th>
+                            <th>状态</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>预约处理</td>
+                            <td>每日 21:30</td>
+                            <td><span class="badge bg-success">活跃</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 页面加载时检查服务器时间
+        checkServerTime();
+
+        // 设置定期刷新
+        setInterval(checkServerTime, 30000); // 每30秒刷新一次
+    });
+</script>
+{% endblock %}

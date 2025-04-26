@@ -1,0 +1,219 @@
+{% extends 'base.html' %}
+
+{% block title %}管理员控制面板 - CCOM 钢琴预约{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h1>管理员控制面板</h1>
+        <p class="lead">管理 CCOM 钢琴预约系统</p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <a href="{{ url_for('admin.system') }}" class="btn btn-primary">
+            <i class="fas fa-cogs"></i> 系统设置
+        </a>
+    </div>
+</div>
+
+<!-- 统计行 -->
+<div class="row mb-4">
+    <div class="col-md-3 mb-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h1 class="display-4">{{ stats.user_count }}</h1>
+                <p class="lead">用户</p>
+                <a href="{{ url_for('admin.users') }}" class="btn btn-sm btn-outline-primary">管理用户</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3 mb-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h1 class="display-4">{{ stats.room_count }}</h1>
+                <p class="lead">琴房</p>
+                <a href="{{ url_for('admin.rooms') }}" class="btn btn-sm btn-outline-primary">管理琴房</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3 mb-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h1 class="display-4">{{ stats.recurring_count }}</h1>
+                <p class="lead">循环预约</p>
+                <div class="text-muted">活跃的循环预约</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3 mb-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h1 class="display-4">{{ stats.one_time_count }}</h1>
+                <p class="lead">一次性预约</p>
+                <div class="text-muted">待处理的一次性请求</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- 左栏 -->
+    <div class="col-lg-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>系统状态</h5>
+            </div>
+            <div class="card-body">
+                <table class="table">
+                    <tr>
+                        <th>服务器时间：</th>
+                        <td>{{ server_time.strftime('%Y-%m-%d %H:%M:%S %Z') }}</td>
+                    </tr>
+                    <tr>
+                        <th>上次处理：</th>
+                        <td>暂无</td>
+                    </tr>
+                    <tr>
+                        <th>成功率：</th>
+                        <td>
+                            {% set success_rate = (stats.success_count / stats.history_count * 100) if stats.history_count > 0 else 0 %}
+                            {{ "%.1f"|format(success_rate) }}% ({{ stats.success_count }} / {{ stats.history_count }})
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>调度器状态：</th>
+                        <td><span class="badge bg-success">运行中</span></td>
+                    </tr>
+                </table>
+
+                <div class="d-grid mt-3">
+                    <a href="{{ url_for('admin.system') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-cogs"></i> 系统管理
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>快速操作</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('admin.users') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-users"></i> 管理用户
+                    </a>
+                    <a href="{{ url_for('admin.rooms') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-door-open"></i> 管理琴房
+                    </a>
+                    <a href="{{ url_for('admin.history') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-history"></i> 查看系统历史
+                    </a>
+                    <a href="{{ url_for('admin.import_rooms') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-file-import"></i> 导入琴房
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 右栏 -->
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5>最近活动</h5>
+                <a href="{{ url_for('admin.history') }}" class="btn btn-sm btn-outline-primary">查看全部</a>
+            </div>
+            <div class="card-body">
+                {% if recent_history %}
+                <div class="table-responsive">
+                    <table class="table table-hover table-reservations">
+                        <thead>
+                            <tr>
+                                <th>日期</th>
+                                <th>用户</th>
+                                <th>琴房</th>
+                                <th>时间</th>
+                                <th>状态</th>
+                                <th>创建时间</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in recent_history %}
+                            <tr class="{{ item.status }}">
+                                <td>{{ item.reservation_date.strftime('%Y-%m-%d') }}</td>
+                                <td>{{ item.user.username }}</td>
+                                <td>{{ item.room.name }}</td>
+                                <td>{{ item.start_time[:2] }}:{{ item.start_time[2:] }} - {{ item.end_time[:2] }}:{{ item.end_time[2:] }}</td>
+                                <td>
+                                    {% if item.status == 'successful' %}
+                                    <span class="badge badge-successful">成功</span>
+                                    {% elif item.status == 'failed' %}
+                                    <span class="badge badge-failed">失败</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">{{ item.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ item.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> 没有找到最近活动。
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5>系统概览</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>预约统计</h6>
+                        <ul class="list-group mb-3">
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                总预约数
+                                <span class="badge bg-primary rounded-pill">{{ stats.history_count }}</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                成功预约
+                                <span class="badge bg-success rounded-pill">{{ stats.success_count }}</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                失败预约
+                                <span class="badge bg-danger rounded-pill">{{ stats.failure_count }}</span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="col-md-6">
+                        <h6>系统设置</h6>
+                        <ul class="list-group">
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                每日最大预约数
+                                <span class="badge bg-info rounded-pill">{{ current_app.config['MAX_DAILY_RESERVATIONS'] }}</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                最长预约时间(小时)
+                                <span class="badge bg-info rounded-pill">{{ current_app.config['MAX_RESERVATION_HOURS'] }}</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                预约开放时间
+                                <span class="badge bg-info rounded-pill">{{ current_app.config['RESERVATION_OPEN_TIME'][:2] }}:{{ current_app.config['RESERVATION_OPEN_TIME'][2:] }}</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+
+{% block title %}用户管理 - 管理员 - CCOM 钢琴预约{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h1>用户管理</h1>
+        <p class="lead">管理系统用户和访问权限</p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <a href="{{ url_for('admin.index') }}" class="btn btn-outline-primary">
+            <i class="fas fa-arrow-left"></i> 返回控制面板
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5>用户列表</h5>
+    </div>
+    <div class="card-body">
+        {% if users %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>用户名</th>
+                        <th>邮箱</th>
+                        <th>管理员</th>
+                        <th>状态</th>
+                        <th>创建时间</th>
+                        <th>上次登录</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>{{ user.username }}</td>
+                        <td>{{ user.email or '未设置' }}</td>
+                        <td>
+                            {% if user.is_admin %}
+                            <span class="badge bg-success">是</span>
+                            {% else %}
+                            <span class="badge bg-secondary">否</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if user.is_active %}
+                            <span class="badge bg-success">活跃</span>
+                            {% else %}
+                            <span class="badge bg-danger">未激活</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ user.created_at.strftime('%Y-%m-%d') }}</td>
+                        <td>{{ user.last_login.strftime('%Y-%m-%d %H:%M') if user.last_login else '从未' }}</td>
+                        <td>
+                            <div class="btn-group">
+                                {% if user.id != current_user.id %}
+                                <form method="POST" action="{{ url_for('admin.toggle_admin', id=user.id) }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-{% if user.is_admin %}warning{% else %}success{% endif %}"
+                                            data-confirm="您确定要{% if user.is_admin %}撤销 {{ user.username }} 的管理员权限{% else %}授予 {{ user.username }} 管理员权限{% endif %}吗？">
+                                        <i class="fas {% if user.is_admin %}fa-user-minus{% else %}fa-user-plus{% endif %}"></i>
+                                        {% if user.is_admin %}撤销管理员{% else %}设为管理员{% endif %}
+                                    </button>
+                                </form>
+
+                                <form method="POST" action="{{ url_for('admin.toggle_active', id=user.id) }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-{% if user.is_active %}danger{% else %}success{% endif %}"
+                                            data-confirm="您确定要{% if user.is_active %}停用{% else %}激活{% endif %} {{ user.username }} 的账户吗？">
+                                        <i class="fas {% if user.is_active %}fa-user-slash{% else %}fa-user-check{% endif %}"></i>
+                                        {% if user.is_active %}停用{% else %}激活{% endif %}
+                                    </button>
+                                </form>
+                                {% else %}
+                                <span class="text-muted">当前用户</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> 系统中未找到用户。
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5>用户角色信息</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <h6>普通用户</h6>
+                <ul>
+                    <li>可以创建和管理自己的预约</li>
+                    <li>可以查看可用琴房和自己的时间表</li>
+                    <li>不能访问管理员功能</li>
+                </ul>
+            </div>
+            <div class="col-md-6">
+                <h6>管理员用户</h6>
+                <ul>
+                    <li>可以管理所有用户（激活/停用，授予/撤销管理员权限）</li>
+                    <li>可以管理琴房（导入、更新）</li>
+                    <li>可以查看系统范围的预约历史</li>
+                    <li>可以控制系统设置并运行手动处理</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="alert alert-warning mt-3">
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>重要提示：</strong> 授予管理员权限时请谨慎。管理员拥有对所有系统功能和数据的完全访问权限。
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,558 @@
+{% extends 'base.html' %}
+
+{% block title %}创建循环预约 - CCOM 钢琴预约{% endblock %}
+
+{% block styles %}
+<style>
+    .time-block {
+        border: 1px solid #ddd;
+        padding: 5px;
+        text-align: center;
+        cursor: pointer;
+        margin-bottom: 5px;
+        border-radius: 4px;
+        transition: all 0.2s;
+    }
+
+    .time-block:hover {
+        background-color: #f8f9fa;
+    }
+
+    .time-block.selected {
+        background-color: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
+    }
+
+    .time-block.disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        background-color: #f1f1f1;
+    }
+
+    .time-column {
+        max-height: 400px;
+        overflow-y: auto;
+        padding-right: 5px;
+    }
+
+    .reservation-block {
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+
+    .reservation-block .header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 15px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h1>创建每周循环预约</h1>
+        <p class="lead">设置自动每周预约 - 您可以预约两个时间段，总计不超过6小时</p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <a href="{{ url_for('reservation.recurring_list') }}" class="btn btn-outline-primary">
+            <i class="fas fa-arrow-left"></i> 返回列表
+        </a>
+    </div>
+</div>
+
+<form method="POST" action="{{ url_for('reservation.recurring_create') }}" id="reservation-form">
+    <input type="hidden" name="total_blocks" id="total_blocks" value="0">
+
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>每周预约信息</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="day_of_week" class="form-label">星期几</label>
+                        <select class="form-select" id="day_of_week" name="day_of_week" required>
+                            <option value="" selected disabled>选择星期</option>
+                            <option value="0">星期一</option>
+                            <option value="1">星期二</option>
+                            <option value="2">星期三</option>
+                            <option value="3">星期四</option>
+                            <option value="4">星期五</option>
+                            <option value="5">星期六</option>
+                            <option value="6">星期日</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 第一个预约块 -->
+            <div class="card mb-4 reservation-block" id="block1">
+                <div class="card-header">
+                    <h5>预约时段 1</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="room_id_1" class="form-label">琴房</label>
+                        <select class="form-select" id="room_id_1" name="room_id_1">
+                            <option value="" selected disabled>选择琴房</option>
+                            {% for room in rooms %}
+                            <option value="{{ room.id }}">{{ room.name }} - {{ room.instruments }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-12">
+                            <label class="form-label">选择时间段（每个时间块为30分钟）</label>
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i> 点击连续的时间块来选择您的预约时间。最长预约时间为6小时。
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div class="d-flex flex-wrap time-blocks-container" id="time-blocks-1">
+                                        <!-- 将由JavaScript填充时间块 -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">开始时间</label>
+                                <input type="text" class="form-control" id="display_start_time_1" readonly>
+                                <input type="hidden" name="start_time_1" id="start_time_1">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">结束时间</label>
+                                <input type="text" class="form-control" id="display_end_time_1" readonly>
+                                <input type="hidden" name="end_time_1" id="end_time_1">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">已选择的时长</label>
+                        <div class="progress">
+                            <div class="progress-bar" id="duration-bar-1" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0小时</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 添加第二个预约块的按钮 -->
+            <div class="text-center mb-4" id="add-block-container">
+                <button type="button" class="btn btn-outline-primary" id="add-block-btn">
+                    <i class="fas fa-plus-circle"></i> 添加第二个预约时段
+                </button>
+            </div>
+
+            <!-- 第二个预约块（初始隐藏） -->
+            <div class="card mb-4 reservation-block d-none" id="block2">
+                <div class="card-header d-flex justify-content-between">
+                    <h5>预约时段 2</h5>
+                    <button type="button" class="btn-close" id="remove-block2-btn" aria-label="关闭"></button>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="room_id_2" class="form-label">琴房</label>
+                        <select class="form-select" id="room_id_2" name="room_id_2">
+                            <option value="" selected disabled>选择琴房</option>
+                            {% for room in rooms %}
+                            <option value="{{ room.id }}">{{ room.name }} - {{ room.instruments }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-12">
+                            <label class="form-label">选择时间段（每个时间块为30分钟）</label>
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i> 点击连续的时间块来选择您的预约时间。两个时段总计不超过6小时。
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div class="d-flex flex-wrap time-blocks-container" id="time-blocks-2">
+                                        <!-- 将由JavaScript填充时间块 -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">开始时间</label>
+                                <input type="text" class="form-control" id="display_start_time_2" readonly>
+                                <input type="hidden" name="start_time_2" id="start_time_2">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">结束时间</label>
+                                <input type="text" class="form-control" id="display_end_time_2" readonly>
+                                <input type="hidden" name="end_time_2" id="end_time_2">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">已选择的时长</label>
+                        <div class="progress">
+                            <div class="progress-bar" id="duration-bar-2" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0小时</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 总计时长信息 -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>总计预约时长</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <div class="progress">
+                            <div class="progress-bar" id="total-duration-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0小时</div>
+                        </div>
+                        <div class="form-text text-end">
+                            <span id="total-hours">0</span> / 6 小时
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        最长总预约时间为 <strong>6 小时</strong>。
+                        系统将在每周所选日期自动尝试预约该琴房。
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary" id="submit-btn">
+                            <i class="fas fa-save"></i> 创建循环预约
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 时间块配置
+        const startHour = 7; // 7:00 AM
+        const endHour = 24;  // 12:00 AM
+        const timeBlocks = [];
+
+        // 生成时间块（每30分钟一个）
+        for (let hour = startHour; hour < endHour; hour++) {
+            // 整点
+            timeBlocks.push({
+                displayTime: `${hour}:00`,
+                value: `${hour.toString().padStart(2, '0')}00`
+            });
+
+            // 半点
+            timeBlocks.push({
+                displayTime: `${hour}:30`,
+                value: `${hour.toString().padStart(2, '0')}30`
+            });
+        }
+
+        // 当前选择状态
+        const selections = {
+            block1: {
+                selectedBlocks: [],
+                startTime: null,
+                endTime: null,
+                duration: 0
+            },
+            block2: {
+                selectedBlocks: [],
+                startTime: null,
+                endTime: null,
+                duration: 0
+            }
+        };
+
+        let totalDuration = 0;
+        const maxTotalHours = 6;
+
+        // 填充时间块到界面
+        function populateTimeBlocks() {
+            const container1 = document.getElementById('time-blocks-1');
+            const container2 = document.getElementById('time-blocks-2');
+
+            // 每行显示4个时间块
+            const blocksPerRow = 4;
+            let currentRow = document.createElement('div');
+            currentRow.className = 'row w-100 mb-2';
+
+            timeBlocks.forEach((block, index) => {
+                // 时间块元素
+                const timeBlock = document.createElement('div');
+                timeBlock.className = 'col time-block';
+                timeBlock.dataset.time = block.value;
+                timeBlock.dataset.index = index;
+                timeBlock.textContent = block.displayTime;
+
+                // 如果需要创建新行
+                if (index % blocksPerRow === 0) {
+                    currentRow = document.createElement('div');
+                    currentRow.className = 'row w-100 mb-2';
+                    container1.appendChild(currentRow);
+                }
+
+                // 添加到当前行
+                const colElement = document.createElement('div');
+                colElement.className = 'col-3';
+                colElement.appendChild(timeBlock);
+                currentRow.appendChild(colElement);
+            });
+
+            // 克隆到第二个容器
+            container2.innerHTML = container1.innerHTML;
+
+            // 为每个区块添加点击事件
+            addBlockClickHandlers('time-blocks-1', 'block1');
+            addBlockClickHandlers('time-blocks-2', 'block2');
+        }
+
+        function addBlockClickHandlers(containerId, blockId) {
+            const blocks = document.querySelectorAll(`#${containerId} .time-block`);
+
+            blocks.forEach(block => {
+                block.addEventListener('click', function() {
+                    // 忽略已禁用的块
+                    if (this.classList.contains('disabled')) return;
+
+                    // 如果不是选择的第一个块，确保是连续的
+                    const currentIndex = parseInt(this.dataset.index);
+
+                    // 选择或取消选择
+                    if (this.classList.contains('selected')) {
+                        // 如果是末尾块，允许取消选择
+                        if (currentIndex === Math.max(...selections[blockId].selectedBlocks)) {
+                            this.classList.remove('selected');
+                            selections[blockId].selectedBlocks = selections[blockId].selectedBlocks.filter(i => i !== currentIndex);
+                        } else if (currentIndex === Math.min(...selections[blockId].selectedBlocks)) {
+                            // 如果是开始块，也允许取消选择
+                            this.classList.remove('selected');
+                            selections[blockId].selectedBlocks = selections[blockId].selectedBlocks.filter(i => i !== currentIndex);
+                        } else {
+                            // 不允许在中间取消选择
+                            alert('只能从开始或结束处取消选择时间块');
+                            return;
+                        }
+                    } else {
+                        // 检查是否超过总时长限制
+                        if ((totalDuration + 0.5) > maxTotalHours) {
+                            alert(`总预约时长不能超过 ${maxTotalHours} 小时`);
+                            return;
+                        }
+
+                        // 是否是第一个选择
+                        if (selections[blockId].selectedBlocks.length === 0) {
+                            this.classList.add('selected');
+                            selections[blockId].selectedBlocks.push(currentIndex);
+                        } else {
+                            // 必须是连续的
+                            const min = Math.min(...selections[blockId].selectedBlocks);
+                            const max = Math.max(...selections[blockId].selectedBlocks);
+
+                            if (currentIndex === min - 1 || currentIndex === max + 1) {
+                                this.classList.add('selected');
+                                selections[blockId].selectedBlocks.push(currentIndex);
+                            } else {
+                                alert('只能选择连续的时间块');
+                                return;
+                            }
+                        }
+                    }
+
+                    // 更新预约信息
+                    updateReservationInfo(blockId);
+                    updateTotalDuration();
+                });
+            });
+        }
+
+        // 更新预约信息
+        function updateReservationInfo(blockId) {
+            const selectedBlocks = selections[blockId].selectedBlocks;
+
+            if (selectedBlocks.length > 0) {
+                const firstIndex = Math.min(...selectedBlocks);
+                const lastIndex = Math.max(...selectedBlocks);
+
+                const startTime = timeBlocks[firstIndex].value;
+                const endTime = calculateEndTime(timeBlocks[lastIndex].value);
+
+                // 显示时间
+                document.getElementById(`display_start_time_${blockId.slice(-1)}`).value = formatTimeDisplay(startTime);
+                document.getElementById(`display_end_time_${blockId.slice(-1)}`).value = formatTimeDisplay(endTime);
+
+                // 设置隐藏字段
+                document.getElementById(`start_time_${blockId.slice(-1)}`).value = startTime;
+                document.getElementById(`end_time_${blockId.slice(-1)}`).value = endTime;
+
+                // 计算持续时间（小时）
+                const duration = (selectedBlocks.length * 0.5); // 每块30分钟
+                selections[blockId].duration = duration;
+
+                // 更新进度条
+                const percentage = (duration / maxTotalHours) * 100;
+                const durationBar = document.getElementById(`duration-bar-${blockId.slice(-1)}`);
+                durationBar.style.width = `${percentage}%`;
+                durationBar.textContent = `${duration} 小时`;
+                durationBar.setAttribute('aria-valuenow', percentage);
+            } else {
+                // 重置显示
+                document.getElementById(`display_start_time_${blockId.slice(-1)}`).value = '';
+                document.getElementById(`display_end_time_${blockId.slice(-1)}`).value = '';
+                document.getElementById(`start_time_${blockId.slice(-1)}`).value = '';
+                document.getElementById(`end_time_${blockId.slice(-1)}`).value = '';
+
+                selections[blockId].duration = 0;
+
+                // 更新进度条
+                const durationBar = document.getElementById(`duration-bar-${blockId.slice(-1)}`);
+                durationBar.style.width = '0%';
+                durationBar.textContent = '0小时';
+                durationBar.setAttribute('aria-valuenow', 0);
+            }
+        }
+
+        // 更新总时长
+        function updateTotalDuration() {
+            totalDuration = selections.block1.duration + selections.block2.duration;
+
+            // 更新进度条
+            const percentage = (totalDuration / maxTotalHours) * 100;
+            const totalBar = document.getElementById('total-duration-bar');
+            totalBar.style.width = `${percentage}%`;
+            totalBar.textContent = `${totalDuration} 小时`;
+            totalBar.setAttribute('aria-valuenow', percentage);
+
+            // 更新总时长显示
+            document.getElementById('total-hours').textContent = totalDuration;
+
+            // 更新表单字段
+            document.getElementById('total_blocks').value =
+                (selections.block1.selectedBlocks.length > 0 ? 1 : 0) +
+                (selections.block2.selectedBlocks.length > 0 ? 1 : 0);
+
+            // 禁用/启用提交按钮
+            const submitBtn = document.getElementById('submit-btn');
+            if (totalDuration === 0) {
+                submitBtn.disabled = true;
+            } else {
+                submitBtn.disabled = false;
+            }
+        }
+
+        // 计算结束时间（30分钟后）
+        function calculateEndTime(timeStr) {
+            const hour = parseInt(timeStr.substring(0, 2));
+            const minute = parseInt(timeStr.substring(2, 4));
+
+            let newHour = hour;
+            let newMinute = minute + 30;
+
+            if (newMinute >= 60) {
+                newHour += 1;
+                newMinute = 0;
+            }
+
+            // 处理24:00特殊情况
+            if (newHour === 24 && newMinute === 0) {
+                return '2400';
+            }
+
+            return `${newHour.toString().padStart(2, '0')}${newMinute.toString().padStart(2, '0')}`;
+        }
+
+        // 格式化时间显示 (HHMM -> HH:MM)
+        function formatTimeDisplay(timeStr) {
+            return `${timeStr.substring(0, 2)}:${timeStr.substring(2, 4)}`;
+        }
+
+        // 添加第二个预约块
+        document.getElementById('add-block-btn').addEventListener('click', function() {
+            document.getElementById('block2').classList.remove('d-none');
+            this.parentElement.classList.add('d-none');
+        });
+
+        // 移除第二个预约块
+        document.getElementById('remove-block2-btn').addEventListener('click', function() {
+            document.getElementById('block2').classList.add('d-none');
+            document.getElementById('add-block-container').classList.remove('d-none');
+
+            // 清除所有选择
+            const blocks = document.querySelectorAll('#time-blocks-2 .time-block');
+            blocks.forEach(block => {
+                block.classList.remove('selected');
+            });
+
+            selections.block2.selectedBlocks = [];
+            updateReservationInfo('block2');
+            updateTotalDuration();
+        });
+
+        // 表单验证
+        document.getElementById('reservation-form').addEventListener('submit', function(event) {
+            const dayOfWeek = document.getElementById('day_of_week').value;
+            const block1Active = selections.block1.selectedBlocks.length > 0;
+            const block2Active = !document.getElementById('block2').classList.contains('d-none') &&
+                               selections.block2.selectedBlocks.length > 0;
+
+            if (!dayOfWeek) {
+                alert('请选择星期几');
+                event.preventDefault();
+                return;
+            }
+
+            if (!block1Active && !block2Active) {
+                alert('请至少选择一个预约时段');
+                event.preventDefault();
+                return;
+            }
+
+            if (block1Active) {
+                const roomId1 = document.getElementById('room_id_1').value;
+                if (!roomId1) {
+                    alert('请为第一个预约时段选择琴房');
+                    event.preventDefault();
+                    return;
+                }
+            }
+
+            if (block2Active) {
+                const roomId2 = document.getElementById('room_id_2').value;
+                if (!roomId2) {
+                    alert('请为第二个预约时段选择琴房');
+                    event.preventDefault();
+                    return;
+                }
+            }
+        });
+
+        // 初始化
+        populateTimeBlocks();
+        updateTotalDuration();
+    });
+</script>
+{% endblock %}

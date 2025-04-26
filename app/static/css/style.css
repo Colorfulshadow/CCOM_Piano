@@ -1,0 +1,303 @@
+/* Global styles */
+:root {
+    --primary-color: #3f51b5;
+    --secondary-color: #f50057;
+    --success-color: #4caf50;
+    --warning-color: #ff9800;
+    --danger-color: #f44336;
+    --info-color: #2196f3;
+    --dark-color: #212121;
+    --light-color: #f5f5f5;
+}
+
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.footer {
+    margin-top: auto;
+    border-top: 1px solid #e9ecef;
+}
+
+/* Navigation */
+.navbar-brand {
+    font-weight: bold;
+    letter-spacing: 0.5px;
+}
+
+/* Cards */
+.card {
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.card:hover {
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+}
+
+.card-header {
+    font-weight: bold;
+    border-bottom: 2px solid rgba(0, 0, 0, 0.05);
+}
+
+.dashboard-card {
+    height: 100%;
+}
+
+.dashboard-card .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.dashboard-card .card-header .icon {
+    font-size: 1.5rem;
+    opacity: 0.6;
+}
+
+/* Reservation tables */
+.table-reservations th {
+    background-color: var(--light-color);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.table-reservations tr.successful {
+    background-color: rgba(76, 175, 80, 0.1);
+}
+
+.table-reservations tr.failed {
+    background-color: rgba(244, 67, 54, 0.1);
+}
+
+.table-reservations tr.pending {
+    background-color: rgba(255, 152, 0, 0.1);
+}
+
+/* Badges */
+.badge-recurring {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.badge-one-time {
+    background-color: var(--info-color);
+    color: white;
+}
+
+.badge-successful {
+    background-color: var(--success-color);
+    color: white;
+}
+
+.badge-failed {
+    background-color: var(--danger-color);
+    color: white;
+}
+
+.badge-pending {
+    background-color: var(--warning-color);
+    color: white;
+}
+
+/* Buttons */
+.btn-outline-primary {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.btn-outline-primary:hover {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+/* Room list */
+.room-card {
+    height: 100%;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.room-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.room-card .card-body {
+    display: flex;
+    flex-direction: column;
+}
+
+.room-card .room-instruments {
+    margin-top: auto;
+    font-size: 0.9rem;
+    color: #666;
+}
+
+/* Dashboard counters */
+.stats-counter {
+    text-align: center;
+    padding: 1rem;
+    border-radius: 8px;
+    background-color: white;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    margin-bottom: 1rem;
+}
+
+.stats-counter .counter-value {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.stats-counter .counter-label {
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 0.5rem;
+    color: #666;
+}
+
+/* Landing page */
+.hero-section {
+    padding: 5rem 0;
+    background: linear-gradient(135deg, var(--primary-color), #7986cb);
+    color: white;
+    margin-bottom: 2rem;
+}
+
+.hero-title {
+    font-size: 3rem;
+    font-weight: bold;
+    margin-bottom: 1rem;
+}
+
+.hero-subtitle {
+    font-size: 1.5rem;
+    opacity: 0.9;
+    margin-bottom: 2rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .hero-title {
+        font-size: 2rem;
+    }
+
+    .hero-subtitle {
+        font-size: 1.2rem;
+    }
+
+    .stats-counter .counter-value {
+        font-size: 2rem;
+    }
+}
+
+/* Timeline for reservation history */
+.reservation-timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.reservation-timeline:before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: 4px;
+    background-color: #e9ecef;
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 30px;
+}
+
+.timeline-item:before {
+    content: '';
+    position: absolute;
+    left: -34px;
+    top: 0;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: white;
+    border: 3px solid var(--primary-color);
+}
+
+.timeline-item.successful:before {
+    border-color: var(--success-color);
+}
+
+.timeline-item.failed:before {
+    border-color: var(--danger-color);
+}
+
+.timeline-item.pending:before {
+    border-color: var(--warning-color);
+}
+
+/* Form styling */
+.form-control:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.25rem rgba(63, 81, 181, 0.25);
+}
+
+.form-label {
+    font-weight: 500;
+}
+
+.form-text {
+    font-size: 0.85rem;
+}
+
+/* Countdown timer */
+.countdown-container {
+    background-color: var(--light-color);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.countdown-timer {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.countdown-label {
+    font-size: 0.9rem;
+    margin-bottom: 0;
+}
+
+/* Login page */
+.login-container {
+    max-width: 400px;
+    margin: 2rem auto;
+}
+
+.login-logo {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.login-logo i {
+    font-size: 4rem;
+    color: var(--primary-color);
+}
+
+/* Tooltip customization */
+.tooltip-inner {
+    background-color: var(--dark-color);
+}
+
+.bs-tooltip-auto[data-popper-placement^=top] .tooltip-arrow::before,
+.bs-tooltip-top .tooltip-arrow::before {
+    border-top-color: var(--dark-color);
+}

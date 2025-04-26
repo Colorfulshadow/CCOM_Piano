@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+
+{% block title %}导入琴房 - 管理员 - CCOM 钢琴预约{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h1>导入琴房</h1>
+        <p class="lead">从 CSV 文件导入练习琴房</p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <a href="{{ url_for('admin.rooms') }}" class="btn btn-outline-primary">
+            <i class="fas fa-arrow-left"></i> 返回琴房列表
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>上传 CSV 文件</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('admin.import_rooms') }}" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="csv_file" class="form-label">CSV 文件</label>
+                        <input type="file" class="form-control" id="csv_file" name="csv_file" accept=".csv" required>
+                        <div class="form-text">
+                            上传包含琴房信息的 CSV 文件。文件应包含以下列：
+                            <code>ID, Name, Partition, Instruments</code>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>警告：</strong> 导入琴房将更新现有琴房并添加新琴房。
+                        此操作无法撤销。
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-file-import"></i> 导入琴房
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5>CSV 格式说明</h5>
+            </div>
+            <div class="card-body">
+                <p>CSV 文件应具有以下格式：</p>
+
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Partition</th>
+                                <th>Instruments</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>1801</td>
+                                <td>教1447</td>
+                                <td>14层智慧琴房</td>
+                                <td>立式钢琴</td>
+                            </tr>
+                            <tr>
+                                <td>1800</td>
+                                <td>教1443</td>
+                                <td>14层智慧琴房</td>
+                                <td>立式钢琴</td>
+                            </tr>
+                            <tr>
+                                <td>1684</td>
+                                <td>琴421</td>
+                                <td>琴房楼</td>
+                                <td>三角钢琴</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h6 class="mt-4">如何生成 CSV 文件</h6>
+                <p>生成此文件的最简单方法是从原始仓库运行 <code>update_nameid.py</code> 脚本：</p>
+
+                <div class="alert alert-info">
+                    <ol class="mb-0">
+                        <li>登录您的 CCOM 账户</li>
+                        <li>运行 <code>update_nameid.py</code> 脚本生成 <code>devices_data.csv</code></li>
+                        <li>使用此表单上传生成的 CSV 文件</li>
+                    </ol>
+                </div>
+
+                <h6 class="mt-4">示例 CSV 格式</h6>
+                <pre><code>ID,Name,Partition,Instruments
+1801,教1447,14层智慧琴房,立式钢琴
+1800,教1443,14层智慧琴房,立式钢琴
+1684,琴421,琴房楼,三角钢琴
+1683,琴420,琴房楼,立式钢琴
+1681,琴418,琴房楼,三角钢琴
+1680,琴410,琴房楼,立式钢琴</code></pre>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

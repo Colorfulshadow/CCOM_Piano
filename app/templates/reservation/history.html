@@ -1,0 +1,174 @@
+{% extends 'base.html' %}
+
+{% block title %}预约历史 - CCOM 钢琴预约{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h1>预约历史</h1>
+        <p class="lead">查看您过去和即将到来的预约</p>
+    </div>
+</div>
+
+<!-- 筛选表单 -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('reservation.history') }}" class="row g-3">
+            <div class="col-md-3">
+                <label for="date_from" class="form-label">开始日期</label>
+                <input type="date" class="form-control" id="date_from" name="date_from" value="{{ date_from }}">
+            </div>
+
+            <div class="col-md-3">
+                <label for="date_to" class="form-label">结束日期</label>
+                <input type="date" class="form-control" id="date_to" name="date_to" value="{{ date_to }}">
+            </div>
+
+            <div class="col-md-3">
+                <label for="status" class="form-label">状态</label>
+                <select class="form-select" id="status" name="status">
+                    <option value="all" {% if status == 'all' %}selected{% endif %}>全部</option>
+                    <option value="successful" {% if status == 'successful' %}selected{% endif %}>成功</option>
+                    <option value="failed" {% if status == 'failed' %}selected{% endif %}>失败</option>
+                </select>
+            </div>
+
+            <div class="col-md-3 d-flex align-items-end">
+                <div class="d-grid w-100">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-filter"></i> 应用筛选
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 历史表格 -->
+<div class="card">
+    <div class="card-body">
+        {% if history_items %}
+        <div class="table-responsive">
+            <table class="table table-hover table-reservations">
+                <thead>
+                    <tr>
+                        <th>日期</th>
+                        <th>琴房</th>
+                        <th>时间</th>
+                        <th>来源</th>
+                        <th>状态</th>
+                        <th>消息</th>
+                        <th>创建时间</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in history_items %}
+                    <tr class="{{ item.status }}">
+                        <td>{{ item.reservation_date.strftime('%Y-%m-%d') }}</td>
+                        <td>{{ item.room.name }}</td>
+                        <td>{{ item.start_time[:2] }}:{{ item.start_time[2:] }} - {{ item.end_time[:2] }}:{{ item.end_time[2:] }}</td>
+                        <td>
+                            {% if item.source_type == 'recurring' %}
+                            <span class="badge badge-recurring">每周</span>
+                            {% elif item.source_type == 'one_time' %}
+                            <span class="badge badge-one-time">一次性</span>
+                            {% else %}
+                            <span class="badge bg-secondary">未知</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.status == 'successful' %}
+                            <span class="badge badge-successful">成功</span>
+                            {% elif item.status == 'failed' %}
+                            <span class="badge badge-failed">失败</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ item.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.message %}
+                            <span class="text-muted" data-bs-toggle="tooltip" title="{{ item.message }}">
+                                {{ item.message[:30] }}{% if item.message|length > 30 %}...{% endif %}
+                            </span>
+                            {% else %}
+                            <span class="text-muted">无消息</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ item.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> 未找到符合筛选条件的预约历史。
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 时间线视图 -->
+<div class="card mt-4">
+    <div class="card-header">
+        <h5>时间线视图</h5>
+    </div>
+    <div class="card-body">
+        {% if history_items %}
+        <div class="reservation-timeline">
+            {% for item in history_items %}
+            <div class="timeline-item {{ item.status }}">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>
+                            {{ item.reservation_date.strftime('%Y-%m-%d') }} |
+                            {{ item.start_time[:2] }}:{{ item.start_time[2:] }} - {{ item.end_time[:2] }}:{{ item.end_time[2:] }}
+                        </span>
+                        <span>
+                            {% if item.status == 'successful' %}
+                            <span class="badge badge-successful">成功</span>
+                            {% elif item.status == 'failed' %}
+                            <span class="badge badge-failed">失败</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ item.status }}</span>
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <h5 class="card-title">{{ item.room.name }}</h5>
+                        <p class="card-text">
+                            <small class="text-muted">
+                                <i class="fas fa-music"></i> {{ item.room.instruments or '未指定乐器' }}
+                            </small>
+                        </p>
+                        {% if item.message %}
+                        <p class="card-text">{{ item.message }}</p>
+                        {% endif %}
+                        <p class="card-text">
+                            <small class="text-muted">
+                                来源：
+                                {% if item.source_type == 'recurring' %}
+                                每周循环预约
+                                {% elif item.source_type == 'one_time' %}
+                                一次性预约
+                                {% else %}
+                                未知来源
+                                {% endif %}
+                            </small>
+                        </p>
+                    </div>
+                    <div class="card-footer text-muted">
+                        <i class="fas fa-clock"></i> {{ item.created_at.strftime('%Y-%m-%d %H:%M') }}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> 未找到符合筛选条件的预约历史。
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

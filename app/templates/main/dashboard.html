@@ -1,0 +1,253 @@
+{% extends 'base.html' %}
+
+{% block title %}控制面板 - CCOM 钢琴预约{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-lg-8">
+        <h1>欢迎，{{ current_user.username }}</h1>
+        <p class="lead">这是您的钢琴琴房预约控制面板</p>
+    </div>
+    <div class="col-lg-4">
+        <div class="countdown-container">
+            <p class="countdown-label">下一个预约窗口开放倒计时：</p>
+            <div class="countdown-timer" id="countdown-timer" data-target-time="{{ next_reservation_date }} {{ next_reservation_time }}">
+                {{ time_until_reservation }}
+            </div>
+            <p class="text-muted mt-2">
+                <i class="fas fa-info-circle"></i> 系统将在 {{ next_reservation_time }} 尝试为 {{ next_reservation_day }} 预约您的琴房
+            </p>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- 左栏：统计和快速操作 -->
+    <div class="col-lg-4">
+        <!-- 统计 -->
+        <div class="card mb-4 dashboard-card">
+            <div class="card-header">
+                <span>您的统计数据</span>
+                <span class="icon"><i class="fas fa-chart-pie"></i></span>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-6 mb-3">
+                        <div class="stats-counter">
+                            <div class="counter-value">{{ statistics.total_successful }}</div>
+                            <div class="counter-label">成功</div>
+                        </div>
+                    </div>
+                    <div class="col-6 mb-3">
+                        <div class="stats-counter">
+                            <div class="counter-value">{{ statistics.total_failed }}</div>
+                            <div class="counter-label">失败</div>
+                        </div>
+                    </div>
+                </div>
+                <hr>
+                <p><strong>成功率：</strong> {{ "%.1f"|format(statistics.success_rate) }}%</p>
+                <p><strong>最常用琴房：</strong> {{ statistics.most_used_room or '暂无' }}</p>
+                <p><strong>最常用日期：</strong> {{ statistics.most_used_day or '暂无' }}</p>
+            </div>
+        </div>
+
+        <!-- 快速操作 -->
+        <div class="card mb-4 dashboard-card">
+            <div class="card-header">
+                <span>快速操作</span>
+                <span class="icon"><i class="fas fa-bolt"></i></span>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('reservation.recurring_create') }}" class="btn btn-primary">
+                        <i class="fas fa-plus-circle"></i> 新建每周预约
+                    </a>
+                    <a href="{{ url_for('reservation.one_time_create') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-calendar-plus"></i> 一次性预约
+                    </a>
+                    <a href="{{ url_for('reservation.room_list') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-door-open"></i> 浏览所有琴房
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 右栏：即将到来和待处理的预约 -->
+    <div class="col-lg-8">
+        <!-- 即将到来的预约 -->
+        <div class="card mb-4 dashboard-card">
+            <div class="card-header">
+                <span>即将到来的预约</span>
+                <span class="icon"><i class="fas fa-calendar-day"></i></span>
+            </div>
+            <div class="card-body">
+                {% if upcoming_reservations %}
+                <div class="table-responsive">
+                    <table class="table table-hover table-reservations">
+                        <thead>
+                            <tr>
+                                <th>日期</th>
+                                <th>琴房</th>
+                                <th>时间</th>
+                                <th>状态</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for res in upcoming_reservations %}
+                            <tr class="{{ res.status }}">
+                                <td>{{ res.reservation_date.strftime('%Y-%m-%d') }}</td>
+                                <td>{{ res.room.name }}</td>
+                                <td>{{ res.start_time[:2] }}:{{ res.start_time[2:] }} - {{ res.end_time[:2] }}:{{ res.end_time[2:] }}</td>
+                                <td>
+                                    {% if res.status == 'successful' %}
+                                    <span class="badge bg-success">已确认</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">失败</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> 您没有即将到来的预约。
+                </div>
+                {% endif %}
+
+                <div class="text-end mt-3">
+                    <a href="{{ url_for('reservation.history') }}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-history"></i> 查看完整历史
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 循环预约 -->
+        <div class="card mb-4 dashboard-card">
+            <div class="card-header">
+                <span>每周循环预约</span>
+                <span class="icon"><i class="fas fa-sync"></i></span>
+            </div>
+            <div class="card-body">
+                {% if recurring_reservations %}
+                <div class="table-responsive">
+                    <table class="table table-hover table-reservations">
+                        <thead>
+                            <tr>
+                                <th>星期</th>
+                                <th>琴房</th>
+                                <th>时间</th>
+                                <th>状态</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for res in recurring_reservations %}
+                            <tr>
+                                <td>{{ res.get_day_name() }}</td>
+                                <td>{{ res.room.name }}</td>
+                                <td>{{ res.start_time[:2] }}:{{ res.start_time[2:] }} - {{ res.end_time[:2] }}:{{ res.end_time[2:] }}</td>
+                                <td>
+                                    {% if res.is_active %}
+                                    <span class="badge bg-success">启用</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">禁用</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('reservation.recurring_edit', id=res.id) }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> 您还没有设置任何每周循环预约。
+                </div>
+                <p>
+                    循环预约允许您每周自动预约相同的琴房和时间。
+                    只需设置一次，系统会自动处理后续预约！
+                </p>
+                <div class="text-center">
+                    <a href="{{ url_for('reservation.recurring_create') }}" class="btn btn-primary">
+                        <i class="fas fa-plus-circle"></i> 设置每周预约
+                    </a>
+                </div>
+                {% endif %}
+
+                <div class="text-end mt-3">
+                    <a href="{{ url_for('reservation.recurring_list') }}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-list"></i> 管理循环预约
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 待处理的一次性预约/取消 -->
+        <div class="card dashboard-card">
+            <div class="card-header">
+                <span>待处理的一次性预约与取消</span>
+                <span class="icon"><i class="fas fa-clock"></i></span>
+            </div>
+            <div class="card-body">
+                {% if pending_reservations %}
+                <div class="table-responsive">
+                    <table class="table table-hover table-reservations">
+                        <thead>
+                            <tr>
+                                <th>日期</th>
+                                <th>琴房</th>
+                                <th>时间</th>
+                                <th>类型</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for res in pending_reservations %}
+                            <tr class="pending">
+                                <td>{{ res.reservation_date.strftime('%Y-%m-%d') }}</td>
+                                <td>{{ res.room.name }}</td>
+                                <td>{{ res.start_time[:2] }}:{{ res.start_time[2:] }} - {{ res.end_time[:2] }}:{{ res.end_time[2:] }}</td>
+                                <td>
+                                    {% if res.is_cancellation %}
+                                    <span class="badge bg-warning">取消预约</span>
+                                    {% else %}
+                                    <span class="badge bg-info">预约</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <form method="POST" action="{{ url_for('reservation.one_time_delete', id=res.id) }}" class="d-inline">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="您确定要删除这个待处理的请求吗？">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> 您没有待处理的一次性预约或取消请求。
+                </div>
+                {% endif %}
+
+                <div class="text-end mt-3">
+                    <a href="{{ url_for('reservation.one_time_list') }}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-list"></i> 管理一次性请求
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

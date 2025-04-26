@@ -1,0 +1,243 @@
+{% extends 'base.html' %}
+
+{% block title %}系统历史 - 管理员 - CCOM 钢琴预约{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h1>系统历史</h1>
+        <p class="lead">查看和分析所有预约活动</p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <a href="{{ url_for('admin.index') }}" class="btn btn-outline-primary">
+            <i class="fas fa-arrow-left"></i> 返回控制面板
+        </a>
+    </div>
+</div>
+
+<!-- 筛选表单 -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('admin.history') }}" class="row g-3">
+            <div class="col-md-2">
+                <label for="user_id" class="form-label">用户</label>
+                <select class="form-select" id="user_id" name="user_id">
+                    <option value="">所有用户</option>
+                    {% for user in users %}
+                    <option value="{{ user.id }}" {% if filters.user_id|string == user.id|string %}selected{% endif %}>
+                        {{ user.username }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-2">
+                <label for="status" class="form-label">状态</label>
+                <select class="form-select" id="status" name="status">
+                    <option value="">所有状态</option>
+                    <option value="successful" {% if filters.status == 'successful' %}selected{% endif %}>成功</option>
+                    <option value="failed" {% if filters.status == 'failed' %}selected{% endif %}>失败</option>
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <label for="date_from" class="form-label">开始日期</label>
+                <input type="date" class="form-control" id="date_from" name="date_from" value="{{ filters.date_from }}">
+            </div>
+
+            <div class="col-md-3">
+                <label for="date_to" class="form-label">结束日期</label>
+                <input type="date" class="form-control" id="date_to" name="date_to" value="{{ filters.date_to }}">
+            </div>
+
+            <div class="col-md-2 d-flex align-items-end">
+                <div class="d-grid w-100">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-filter"></i> 应用筛选
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 历史表格 -->
+<div class="card">
+    <div class="card-body">
+        {% if history_items %}
+        <div class="table-responsive">
+            <table class="table table-hover table-reservations">
+                <thead>
+                    <tr>
+                        <th>日期</th>
+                        <th>用户</th>
+                        <th>琴房</th>
+                        <th>时间</th>
+                        <th>来源</th>
+                        <th>状态</th>
+                        <th>消息</th>
+                        <th>创建时间</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in history_items %}
+                    <tr class="{{ item.status }}">
+                        <td>{{ item.reservation_date.strftime('%Y-%m-%d') }}</td>
+                        <td>{{ item.user.username }}</td>
+                        <td>{{ item.room.name }}</td>
+                        <td>{{ item.start_time[:2] }}:{{ item.start_time[2:] }} - {{ item.end_time[:2] }}:{{ item.end_time[2:] }}</td>
+                        <td>
+                            {% if item.source_type == 'recurring' %}
+                            <span class="badge badge-recurring">每周</span>
+                            {% elif item.source_type == 'one_time' %}
+                            <span class="badge badge-one-time">一次性</span>
+                            {% else %}
+                            <span class="badge bg-secondary">未知</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.status == 'successful' %}
+                            <span class="badge badge-successful">成功</span>
+                            {% elif item.status == 'failed' %}
+                            <span class="badge badge-failed">失败</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ item.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.message %}
+                            <span class="text-muted" data-bs-toggle="tooltip" title="{{ item.message }}">
+                                {{ item.message[:30] }}{% if item.message|length > 30 %}...{% endif %}
+                            </span>
+                            {% else %}
+                            <span class="text-muted">无消息</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ item.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 分页 -->
+        {% if pagination.pages > 1 %}
+        <nav aria-label="History pagination" class="mt-4">
+            <ul class="pagination justify-content-center">
+                <li class="page-item {% if pagination.page == 1 %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('admin.history', page=pagination.prev_num, **filters) }}" tabindex="-1">上一页</a>
+                </li>
+
+                {% for page_num in pagination.iter_pages(left_edge=2, right_edge=2, left_current=2, right_current=3) %}
+                    {% if page_num %}
+                        <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                            <a class="page-link" href="{{ url_for('admin.history', page=page_num, **filters) }}">{{ page_num }}</a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">…</span>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+
+                <li class="page-item {% if pagination.page == pagination.pages %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('admin.history', page=pagination.next_num, **filters) }}">下一页</a>
+                </li>
+            </ul>
+        </nav>
+        {% endif %}
+
+        {% else %}
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> 未找到符合筛选条件的预约历史。
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 统计信息 -->
+<div class="card mt-4">
+    <div class="card-header">
+        <h5>预约统计</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <h6>按来源类型的成功率</h6>
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>来源</th>
+                            <th>总计</th>
+                            <th>成功</th>
+                            <th>失败</th>
+                            <th>成功率</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% set recurring_total = history_items|selectattr('source_type', 'eq', 'recurring')|list|length %}
+                        {% set recurring_success = history_items|selectattr('source_type', 'eq', 'recurring')|selectattr('status', 'eq', 'successful')|list|length %}
+                        {% set recurring_failed = recurring_total - recurring_success %}
+                        {% set recurring_rate = (recurring_success / recurring_total * 100)|round(1) if recurring_total > 0 else 0 %}
+
+                        {% set onetime_total = history_items|selectattr('source_type', 'eq', 'one_time')|list|length %}
+                        {% set onetime_success = history_items|selectattr('source_type', 'eq', 'one_time')|selectattr('status', 'eq', 'successful')|list|length %}
+                        {% set onetime_failed = onetime_total - onetime_success %}
+                        {% set onetime_rate = (onetime_success / onetime_total * 100)|round(1) if onetime_total > 0 else 0 %}
+
+                        <tr>
+                            <td>每周循环</td>
+                            <td>{{ recurring_total }}</td>
+                            <td>{{ recurring_success }}</td>
+                            <td>{{ recurring_failed }}</td>
+                            <td>{{ recurring_rate }}%</td>
+                        </tr>
+                        <tr>
+                            <td>一次性</td>
+                            <td>{{ onetime_total }}</td>
+                            <td>{{ onetime_success }}</td>
+                            <td>{{ onetime_failed }}</td>
+                            <td>{{ onetime_rate }}%</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="col-md-6">
+                <h6>最常见的失败原因</h6>
+                {% set failure_messages = {} %}
+                {% for item in history_items if item.status == 'failed' and item.message %}
+                    {% if item.message in failure_messages %}
+                        {% set _ = failure_messages.update({item.message: failure_messages[item.message] + 1}) %}
+                    {% else %}
+                        {% set _ = failure_messages.update({item.message: 1}) %}
+                    {% endif %}
+                {% endfor %}
+
+                {% if failure_messages %}
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>错误消息</th>
+                            <th>次数</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for message, count in failure_messages.items()|sort(reverse=true, attribute='1') %}
+                        <tr>
+                            <td>{{ message }}</td>
+                            <td>{{ count }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> 当前筛选条件下没有可用的失败数据。
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
