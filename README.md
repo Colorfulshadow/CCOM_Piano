@@ -21,8 +21,8 @@ A web application for automating piano room reservations at the Central Conserva
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/ccom-piano-reservation.git
-   cd ccom-piano-reservation
+   git clone https://github.com/Colorfulshadow/CCOM_Piano
+   cd CCOM_Piano
    ```
 
 2. Create and activate a virtual environment:
