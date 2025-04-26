@@ -1,7 +1,7 @@
 """
 @Author: Tianyi Zhang
 @Date: 2025/4/26
-@Description: 
+@Description: Updated scheduler to support parallel processing of reservations
 """
 from flask import current_app
 from datetime import datetime
@@ -52,8 +52,13 @@ def execute_pre_login():
         current_app.logger.info("Starting pre-login process")
 
         try:
-            # Perform pre-login for all users with pending reservations
-            results = ReservationService.perform_pre_login()
+            # Calculate the number of workers based on server resources
+            # A reasonable default is the number of CPU cores + 1
+            import multiprocessing
+            max_workers = min(multiprocessing.cpu_count() + 1, 16)  # Cap at 16 workers to prevent overloading
+
+            # Perform pre-login for all users with pending reservations using parallel processing
+            results = ReservationService.perform_pre_login(max_workers=max_workers)
 
             # Log results
             current_app.logger.info(
@@ -69,23 +74,29 @@ def execute_pre_login():
             return {'error': str(e)}
 
 def execute_scheduled_reservations():
-    """Execute all pending reservations for tomorrow"""
+    """Execute all pending reservations for tomorrow using parallel processing"""
     with current_app.app_context():
-        current_app.logger.info("Starting scheduled reservation execution")
+        current_app.logger.info("Starting scheduled reservation execution with parallel processing")
 
         try:
-            # Execute all reservations
-            results = ReservationService.execute_reservations()
+            # Calculate the number of workers based on server resources
+            # A reasonable default is the number of CPU cores + 1
+            import multiprocessing
+            max_workers = min(multiprocessing.cpu_count() + 1, 16)  # Cap at 16 workers to prevent overloading
+
+            # Execute all reservations with parallel processing
+            results = ReservationService.execute_reservations(max_workers=max_workers)
 
             # Send notifications
             notification_count = NotificationService.send_bulk_reservation_results(results)
 
             # Log results
             current_app.logger.info(
-                f"Reservation execution completed: "
+                f"Parallel reservation execution completed: "
                 f"{results['total_successful']} successful, "
                 f"{results['total_failed']} failed, "
-                f"{notification_count} notifications sent"
+                f"{notification_count} notifications sent. "
+                f"Using {max_workers} worker threads."
             )
 
             return results

@@ -1,7 +1,7 @@
 """
 @Author: Tianyi Zhang
 @Date: 2025/4/26
-@Description: 
+@Description: Modified CCOM client to handle multiple reservation segments
 """
 import requests
 import json
@@ -29,6 +29,7 @@ class CCOMClient:
         self.token = token
         self.root = current_app.config['CCOM_API_ROOT']
         self.ua = current_app.config['CCOM_API_UA']
+        self.session = requests.Session()  # Use session for persistent connections
 
     def soft_login(self):
         """Try to use existing token, fall back to full login if that fails"""
@@ -64,7 +65,7 @@ class CCOMClient:
         try:
             body_json = json.dumps(body)
             headers['Content-Length'] = str(len(body_json))
-            resp = requests.post(url, headers=headers, data=body_json, proxies=None)
+            resp = self.session.post(url, headers=headers, data=body_json, proxies=None)
             resp_data = resp.json()
 
             if resp_data.get('status') == 200 and resp_data.get('msg') == '成功':
@@ -92,9 +93,9 @@ class CCOMClient:
 
         try:
             if method.lower() == 'get':
-                resp = requests.get(url, headers=headers, proxies=None)
+                resp = self.session.get(url, headers=headers, proxies=None)
             elif method.lower() == 'post':
-                resp = requests.post(url, json=data, headers=headers, proxies=None)
+                resp = self.session.post(url, json=data, headers=headers, proxies=None)
             else:
                 raise ValueError(f"Unsupported HTTP method: {method}")
 
@@ -115,7 +116,7 @@ class CCOMClient:
             'Authorization': self.token,
         }
 
-        resp = requests.get(url, headers=headers, proxies=None)
+        resp = self.session.get(url, headers=headers, proxies=None)
         return resp.json()
 
     def get_order_list(self):
@@ -123,7 +124,28 @@ class CCOMClient:
         return self._call_api('get', 'getOrderList?type=0', {})
 
     def reserve_room(self, room_id, start_time, end_time, max_retries=4, retry_delay=0.1):
-        """Make a room reservation with retry logic in case of failure"""
+        """
+        Make a room reservation with retry logic in case of failure
+
+        Args:
+            room_id: Room CCOM ID
+            start_time: Reservation start time (millisecond timestamp)
+            end_time: Reservation end time (millisecond timestamp)
+            max_retries: Maximum number of retries on failure
+            retry_delay: Delay between retries in seconds
+
+        Returns:
+            dict: API response
+        """
+        # Ensure we're not exceeding the 3-hour limit
+        hours_diff = (end_time - start_time) / (1000 * 60 * 60)  # Convert ms to hours
+        if hours_diff > 3:
+            current_app.logger.warning(f"Reservation request exceeds 3-hour limit: {hours_diff} hours")
+            return {
+                'status': 400,
+                'msg': f'Reservation exceeds maximum allowed duration (3 hours). Requested: {hours_diff:.2f} hours'
+            }
+
         data = {
             "device": room_id,
             'subscribeList': [{"startTime": start_time, "endTime": end_time, "aiMonitoringNum": None}]
