@@ -28,7 +28,8 @@ def create_app(config_class=Config):
     # Add this configuration to ensure scheduler jobs run within app context
     app.config['SCHEDULER_API_ENABLED'] = True
     app.config['SCHEDULER_EXECUTORS'] = {'default': {'type': 'threadpool', 'max_workers': 20}}
-    app.config['SCHEDULER_JOB_DEFAULTS'] = {'coalesce': False, 'max_instances': 3}
+    app.config['SCHEDULER_JOB_DEFAULTS'] = {'coalesce': True, 'max_instances': 1}
+    app.config['SCHEDULER_MISFIRE_GRACE_TIME'] = 15 * 60  # 15 minutes grace time
 
     # Initialize extensions with app
     db.init_app(app)
@@ -50,7 +51,8 @@ def create_app(config_class=Config):
     # Initialize task scheduler
     with app.app_context():
         from app.tasks.scheduler import initialize_scheduler
-        initialize_scheduler(scheduler)
+        # Pass the app instance to the scheduler initialization
+        initialize_scheduler(scheduler, app)
         scheduler.start()
 
     @app.context_processor

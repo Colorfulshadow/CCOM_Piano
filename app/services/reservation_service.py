@@ -17,6 +17,7 @@ import pytz
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import concurrent.futures
 import threading
+import time
 
 # Thread-local storage for database session management
 thread_local = threading.local()
@@ -132,6 +133,53 @@ class ReservationService:
         return segments
 
     @staticmethod
+    def attempt_reservation(client, room_ccom_id, start_timestamp, end_timestamp, max_attempts=5, retry_delay=0.5):
+        """
+        Attempt to make a reservation multiple times before giving up
+
+        Args:
+            client: CCOMClient instance
+            room_ccom_id: Room CCOM ID
+            start_timestamp: Start time (millisecond timestamp)
+            end_timestamp: End time (millisecond timestamp)
+            max_attempts: Maximum number of attempts
+            retry_delay: Delay between attempts in seconds
+
+        Returns:
+            tuple: (success, error_message)
+        """
+        for attempt in range(max_attempts):
+            try:
+                response = client.reserve_room(room_ccom_id, start_timestamp, end_timestamp)
+
+                # Check if success
+                if response.get('status') == 200 and response.get('msg') == '成功':
+                    return True, None
+
+                # Check if already chosen (this is not a real failure, just means it's already reserved successfully)
+                if response.get('msg') and '已选择' in response.get('msg'):
+                    return True, None
+
+                # If this is not the last attempt, wait and try again
+                if attempt < max_attempts - 1:
+                    # Log the retry
+                    current_app.logger.info(f"Retrying reservation (attempt {attempt+1}/{max_attempts}): {response.get('msg')}")
+                    time.sleep(retry_delay)
+                    continue
+
+                # All attempts failed
+                return False, response.get('msg', 'Unknown error')
+
+            except Exception as e:
+                if attempt < max_attempts - 1:
+                    current_app.logger.info(f"Exception during reservation (attempt {attempt+1}/{max_attempts}): {str(e)}")
+                    time.sleep(retry_delay)
+                    continue
+                return False, str(e)
+
+        return False, "Maximum attempts reached"
+
+    @staticmethod
     def process_single_recurring_reservation(reservation, target_date, results_dict, lock):
         """
         Process a single recurring reservation
@@ -195,32 +243,34 @@ class ReservationService:
                 reservation.end_time
             )
 
-            reservation_success = True
-            segment_errors = []
+            # Process all segments with multiple attempts per segment
+            all_segments_succeeded = True
+            all_errors = []
 
-            # Process each time segment
             for start_timestamp, end_timestamp in time_segments:
-                # Make the reservation
-                response = client.reserve_room(room.ccom_id, start_timestamp, end_timestamp)
+                # Try to reserve this segment with multiple attempts
+                success, error_msg = ReservationService.attempt_reservation(
+                    client, room.ccom_id, start_timestamp, end_timestamp
+                )
 
-                if not (response.get('status') == 200 and response.get('msg') == '成功'):
-                    reservation_success = False
-                    segment_errors.append(response.get('msg', 'Unknown error'))
+                if not success:
+                    all_segments_succeeded = False
+                    all_errors.append(error_msg or "Unknown error")
 
-            # Record results
+            # Only record the final result in history
             with lock:
                 results_dict['processed'] += 1
 
-                if reservation_success:
+                if all_segments_succeeded:
                     results_dict['successful'] += 1
                     status = 'successful'
                     message = 'Reservation successful'
                 else:
                     results_dict['failed'] += 1
                     status = 'failed'
-                    message = '; '.join(segment_errors)
+                    message = '; '.join(all_errors)
 
-            # Save to history
+            # Save to history - only one entry regardless of how many segments or attempts
             history = ReservationHistory(
                 user_id=reservation.user_id,
                 room_id=reservation.room_id,
@@ -319,15 +369,31 @@ class ReservationService:
                             break
 
                 if order_id:
-                    response = client.cancel_reservation(order_id)
+                    # Make multiple attempts to cancel
+                    success = False
+                    error_msg = "No attempts made"
+
+                    for attempt in range(3):  # Try up to 3 times
+                        response = client.cancel_reservation(order_id)
+
+                        if response.get('status') == 200 and response.get('msg') == '成功':
+                            success = True
+                            error_msg = None
+                            break
+
+                        if attempt < 2:  # Not the last attempt
+                            time.sleep(0.5)  # Wait before retry
+
+                        error_msg = response.get('msg', 'Unknown error')
                 else:
-                    response = {'status': 400, 'msg': 'No matching reservation found to cancel'}
+                    success = False
+                    error_msg = 'No matching reservation found to cancel'
 
                 # Record results
                 with lock:
                     results_dict['processed'] += 1
 
-                    if response.get('status') == 200 and response.get('msg') == '成功':
+                    if success:
                         reservation.status = 'successful'
                         results_dict['successful'] += 1
                         status = 'successful'
@@ -336,7 +402,7 @@ class ReservationService:
                         reservation.status = 'failed'
                         results_dict['failed'] += 1
                         status = 'failed'
-                        message = response.get('msg', 'Unknown error')
+                        message = error_msg
 
                 session.commit()
 
@@ -348,23 +414,25 @@ class ReservationService:
                     reservation.end_time
                 )
 
-                reservation_success = True
-                segment_errors = []
+                # Process all segments with multiple attempts per segment
+                all_segments_succeeded = True
+                all_errors = []
 
-                # Process each time segment
                 for start_timestamp, end_timestamp in time_segments:
-                    # Make the reservation
-                    response = client.reserve_room(room.ccom_id, start_timestamp, end_timestamp)
+                    # Try to reserve this segment with multiple attempts
+                    success, error_msg = ReservationService.attempt_reservation(
+                        client, room.ccom_id, start_timestamp, end_timestamp
+                    )
 
-                    if not (response.get('status') == 200 and response.get('msg') == '成功'):
-                        reservation_success = False
-                        segment_errors.append(response.get('msg', 'Unknown error'))
+                    if not success:
+                        all_segments_succeeded = False
+                        all_errors.append(error_msg or "Unknown error")
 
-                # Record results
+                # Record results - only one entry regardless of attempts
                 with lock:
                     results_dict['processed'] += 1
 
-                    if reservation_success:
+                    if all_segments_succeeded:
                         reservation.status = 'successful'
                         results_dict['successful'] += 1
                         status = 'successful'
@@ -373,11 +441,11 @@ class ReservationService:
                         reservation.status = 'failed'
                         results_dict['failed'] += 1
                         status = 'failed'
-                        message = '; '.join(segment_errors)
+                        message = '; '.join(all_errors)
 
                 session.commit()
 
-            # Save to history
+            # Save to history - only one entry regardless of attempts
             history = ReservationHistory(
                 user_id=reservation.user_id,
                 room_id=reservation.room_id,
@@ -490,6 +558,7 @@ class ReservationService:
                         return ReservationService.process_single_recurring_reservation(
                             res, target_date, results, lock
                         )
+
                 futures.append(executor.submit(process_with_context))
 
             # Wait for all tasks to complete
@@ -497,7 +566,8 @@ class ReservationService:
                 try:
                     future.result()
                 except Exception as e:
-                    current_app.logger.error(f"Unexpected thread error: {str(e)}")
+                    with app.app_context():
+                        current_app.logger.error(f"Unexpected thread error: {str(e)}")
                     with lock:
                         results['errors'].append(f"Thread error: {str(e)}")
 
@@ -549,6 +619,7 @@ class ReservationService:
                         return ReservationService.process_single_one_time_reservation(
                             res, target_date, results, lock
                         )
+
                 futures.append(executor.submit(process_with_context))
 
             # Wait for all tasks to complete
@@ -556,7 +627,8 @@ class ReservationService:
                 try:
                     future.result()
                 except Exception as e:
-                    current_app.logger.error(f"Unexpected thread error: {str(e)}")
+                    with app.app_context():
+                        current_app.logger.error(f"Unexpected thread error: {str(e)}")
                     with lock:
                         results['errors'].append(f"Thread error: {str(e)}")
 
@@ -615,6 +687,7 @@ class ReservationService:
                 def process_with_context(u=user):
                     with app.app_context():
                         return ReservationService.process_user_login(u, results, lock)
+
                 futures.append(executor.submit(process_with_context))
 
             # Wait for all tasks to complete
@@ -622,7 +695,8 @@ class ReservationService:
                 try:
                     future.result()
                 except Exception as e:
-                    current_app.logger.error(f"Unexpected thread error in pre-login: {str(e)}")
+                    with app.app_context():
+                        current_app.logger.error(f"Unexpected thread error in pre-login: {str(e)}")
                     with lock:
                         results['errors'].append(f"Thread error in pre-login: {str(e)}")
 
