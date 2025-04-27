@@ -1,10 +1,11 @@
 """
 @Author: Tianyi Zhang
 @Date: 2025/4/26
-@Description: Parallel reservation processing implementation
+@Description: Improved reservation processing implementation with better thread-safe handling
 """
 from datetime import datetime, timedelta, date
 from flask import current_app
+from sqlalchemy.orm import scoped_session
 from app import db
 from app.models.user import User
 from app.models.room import Room
@@ -22,8 +23,23 @@ thread_local = threading.local()
 
 class ReservationService:
     @staticmethod
+    def get_db_session():
+        """Get a thread-local database session"""
+        if not hasattr(thread_local, "session"):
+            # Create a new scoped session using SQLAlchemy's Session factory
+            thread_local.session = scoped_session(db.session.registry)
+        return thread_local.session
+
+    @staticmethod
+    def close_db_session():
+        """Close the thread-local database session properly"""
+        if hasattr(thread_local, "session"):
+            thread_local.session.remove()
+            delattr(thread_local, "session")
+
+    @staticmethod
     def get_user_daily_reservations(user_id, target_date=None):
-        """Get user reservations for a specific date"""
+        """Get user reservations for a specific date - Use the main session for this"""
         if target_date is None:
             target_date = date.today() + timedelta(days=1)  # Default to tomorrow
 
@@ -129,7 +145,11 @@ class ReservationService:
         Returns:
             None (updates results_dict in place)
         """
+        session = None
         try:
+            # Get thread-local session
+            session = ReservationService.get_db_session()
+
             # Skip if user already has MAX_DAILY_RESERVATIONS successful reservations
             existing_reservations = ReservationService.get_user_daily_reservations(
                 reservation.user_id, target_date
@@ -140,7 +160,13 @@ class ReservationService:
                 return
 
             # Process the reservation
-            user = User.query.get(reservation.user_id)
+            user = session.query(User).get(reservation.user_id)
+            if not user:
+                with lock:
+                    results_dict['failed'] += 1
+                    results_dict['errors'].append(f"User not found: {reservation.user_id}")
+                return
+
             client = CCOMClient(user.username, user.get_ccom_password(), user.ccom_token)
 
             # Ensure we're logged in
@@ -152,10 +178,15 @@ class ReservationService:
 
             # Update user token
             user.ccom_token = client.token
-            db.session.commit()
+            session.commit()
 
             # Get room
-            room = Room.query.get(reservation.room_id)
+            room = session.query(Room).get(reservation.room_id)
+            if not room:
+                with lock:
+                    results_dict['failed'] += 1
+                    results_dict['errors'].append(f"Room not found: {reservation.room_id}")
+                return
 
             # Split reservation into segments (max 3 hours each)
             time_segments = ReservationService.split_reservation_time(
@@ -201,14 +232,18 @@ class ReservationService:
                 source_type='recurring',
                 source_id=reservation.id
             )
-            db.session.add(history)
-            db.session.commit()
+            session.add(history)
+            session.commit()
 
         except Exception as e:
             with lock:
                 results_dict['failed'] += 1
                 results_dict['errors'].append(str(e))
             current_app.logger.error(f"Error processing recurring reservation {reservation.id}: {str(e)}")
+        finally:
+            # Make sure to properly close the session
+            if session:
+                ReservationService.close_db_session()
 
     @staticmethod
     def process_single_one_time_reservation(reservation, target_date, results_dict, lock):
@@ -224,14 +259,26 @@ class ReservationService:
         Returns:
             None (updates results_dict in place)
         """
+        session = None
         try:
-            user = User.query.get(reservation.user_id)
+            # Get thread-local session
+            session = ReservationService.get_db_session()
+
+            user = session.query(User).get(reservation.user_id)
+            if not user:
+                reservation.status = 'failed'
+                session.commit()
+                with lock:
+                    results_dict['failed'] += 1
+                    results_dict['errors'].append(f"User not found: {reservation.user_id}")
+                return
+
             client = CCOMClient(user.username, user.get_ccom_password(), user.ccom_token)
 
             # Ensure we're logged in
             if not client.soft_login():
                 reservation.status = 'failed'
-                db.session.commit()
+                session.commit()
 
                 with lock:
                     results_dict['failed'] += 1
@@ -240,10 +287,17 @@ class ReservationService:
 
             # Update user token
             user.ccom_token = client.token
-            db.session.commit()
+            session.commit()
 
             # Get room
-            room = Room.query.get(reservation.room_id)
+            room = session.query(Room).get(reservation.room_id)
+            if not room:
+                reservation.status = 'failed'
+                session.commit()
+                with lock:
+                    results_dict['failed'] += 1
+                    results_dict['errors'].append(f"Room not found: {reservation.room_id}")
+                return
 
             # Process cancellation
             if reservation.is_cancellation:
@@ -284,7 +338,7 @@ class ReservationService:
                         status = 'failed'
                         message = response.get('msg', 'Unknown error')
 
-                db.session.commit()
+                session.commit()
 
             else:
                 # Regular reservation - Split into segments (max 3 hours each)
@@ -321,7 +375,7 @@ class ReservationService:
                         status = 'failed'
                         message = '; '.join(segment_errors)
 
-                db.session.commit()
+                session.commit()
 
             # Save to history
             history = ReservationHistory(
@@ -335,17 +389,57 @@ class ReservationService:
                 source_type='one_time',
                 source_id=reservation.id
             )
-            db.session.add(history)
-            db.session.commit()
+            session.add(history)
+            session.commit()
 
         except Exception as e:
-            reservation.status = 'failed'
-            db.session.commit()
+            try:
+                if reservation and session:
+                    reservation.status = 'failed'
+                    session.commit()
+            except:
+                pass
 
             with lock:
                 results_dict['failed'] += 1
                 results_dict['errors'].append(str(e))
             current_app.logger.error(f"Error processing one-time reservation {reservation.id}: {str(e)}")
+        finally:
+            # Make sure to properly close the session
+            if session:
+                ReservationService.close_db_session()
+
+    @staticmethod
+    def process_user_login(user, results, lock):
+        """Process a single user pre-login"""
+        session = None
+        try:
+            # Get thread-local session
+            session = ReservationService.get_db_session()
+
+            client = CCOMClient(user.username, user.get_ccom_password(), user.ccom_token)
+
+            if client.soft_login():
+                # Update the token in the database
+                user.ccom_token = client.token
+                session.commit()
+                with lock:
+                    results['successful'] += 1
+                current_app.logger.info(f"Pre-login successful for user {user.username}")
+            else:
+                with lock:
+                    results['failed'] += 1
+                    results['errors'].append(f"Pre-login failed for user {user.username}")
+                current_app.logger.error(f"Pre-login failed for user {user.username}")
+        except Exception as e:
+            with lock:
+                results['failed'] += 1
+                results['errors'].append(f"Error during pre-login for user {user.username}: {str(e)}")
+            current_app.logger.error(f"Error during pre-login for user {user.username}: {str(e)}")
+        finally:
+            # Make sure to properly close the session
+            if session:
+                ReservationService.close_db_session()
 
     @staticmethod
     def process_recurring_reservations(target_date=None, max_workers=10):
@@ -382,15 +476,21 @@ class ReservationService:
         # Thread lock for updating results dictionary
         lock = threading.Lock()
 
+        # Create app context for each worker thread to use
+        from flask import current_app
+        app = current_app._get_current_object()
+
         # Process reservations in parallel
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Submit all tasks
-            futures = [
-                executor.submit(
-                    ReservationService.process_single_recurring_reservation,
-                    reservation, target_date, results, lock
-                ) for reservation in recurring_reservations
-            ]
+            # Submit all tasks - each with its own app context
+            futures = []
+            for reservation in recurring_reservations:
+                def process_with_context(res=reservation):
+                    with app.app_context():
+                        return ReservationService.process_single_recurring_reservation(
+                            res, target_date, results, lock
+                        )
+                futures.append(executor.submit(process_with_context))
 
             # Wait for all tasks to complete
             for future in concurrent.futures.as_completed(futures):
@@ -435,15 +535,21 @@ class ReservationService:
         # Thread lock for updating results dictionary
         lock = threading.Lock()
 
+        # Create app context for each worker thread to use
+        from flask import current_app
+        app = current_app._get_current_object()
+
         # Process reservations in parallel
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Submit all tasks
-            futures = [
-                executor.submit(
-                    ReservationService.process_single_one_time_reservation,
-                    reservation, target_date, results, lock
-                ) for reservation in one_time_reservations
-            ]
+            # Submit all tasks - each with its own app context
+            futures = []
+            for reservation in one_time_reservations:
+                def process_with_context(res=reservation):
+                    with app.app_context():
+                        return ReservationService.process_single_one_time_reservation(
+                            res, target_date, results, lock
+                        )
+                futures.append(executor.submit(process_with_context))
 
             # Wait for all tasks to complete
             for future in concurrent.futures.as_completed(futures):
@@ -497,33 +603,19 @@ class ReservationService:
         # Thread lock for updating results dictionary
         lock = threading.Lock()
 
-        # Function to process a single user pre-login
-        def process_user_login(user):
-            try:
-                client = CCOMClient(user.username, user.get_ccom_password(), user.ccom_token)
-
-                if client.soft_login():
-                    # Update the token in the database
-                    user.ccom_token = client.token
-                    db.session.commit()
-                    with lock:
-                        results['successful'] += 1
-                    current_app.logger.info(f"Pre-login successful for user {user.username}")
-                else:
-                    with lock:
-                        results['failed'] += 1
-                        results['errors'].append(f"Pre-login failed for user {user.username}")
-                    current_app.logger.error(f"Pre-login failed for user {user.username}")
-            except Exception as e:
-                with lock:
-                    results['failed'] += 1
-                    results['errors'].append(f"Error during pre-login for user {user.username}: {str(e)}")
-                current_app.logger.error(f"Error during pre-login for user {user.username}: {str(e)}")
+        # Create app context for each worker thread to use
+        from flask import current_app
+        app = current_app._get_current_object()
 
         # Process user logins in parallel
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Submit all tasks
-            futures = [executor.submit(process_user_login, user) for user in users]
+            # Submit all tasks - each with its own app context
+            futures = []
+            for user in users:
+                def process_with_context(u=user):
+                    with app.app_context():
+                        return ReservationService.process_user_login(u, results, lock)
+                futures.append(executor.submit(process_with_context))
 
             # Wait for all tasks to complete
             for future in concurrent.futures.as_completed(futures):

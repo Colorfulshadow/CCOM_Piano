@@ -36,9 +36,10 @@ class CCOMClient:
         if self.token:
             try:
                 result = self.get_basic_info()
-                if result['data']['studentNumber'].lower() == self.username.lower():
-                    current_app.logger.info(f"Soft login successful for user {self.username}")
-                    return True
+                if result.get('status') == 200 and result.get('msg') == '成功':
+                    if result.get('data', {}).get('studentNumber', '').lower() == self.username.lower():
+                        current_app.logger.info(f"Soft login successful for user {self.username}")
+                        return True
             except Exception as e:
                 current_app.logger.error(f"Soft login failed: {str(e)}")
 
@@ -202,10 +203,10 @@ class CCOMClient:
 
     def _parse_response(self, api_response):
         """Parse the availability response from the API"""
-        if api_response['status'] != 200:
+        if api_response.get('status') != 200:
             return {'error': 'API call failed', 'details': api_response}
 
-        data = api_response['data']
+        data = api_response.get('data', {})
         return {
             'openDays': data.get('openDays', []),
             'startTime': data.get('startTime'),

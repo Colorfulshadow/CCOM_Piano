@@ -1,7 +1,7 @@
 """
 @Author: Tianyi Zhang
 @Date: 2025/4/26
-@Description: Updated scheduler to support parallel processing of reservations
+@Description: Improved scheduler to support parallel processing of reservations
 """
 from flask import current_app
 from datetime import datetime
@@ -23,7 +23,7 @@ def initialize_scheduler(scheduler):
         timezone=pytz.timezone('Asia/Shanghai')
     )
 
-    # Add a new task for pre-login at 21:25 (5 minutes before reservations)
+    # Add a new task for pre-login at 21:28 (2 minutes before reservations)
     scheduler.add_job(
         id='execute_pre_login',
         func=execute_pre_login,
@@ -34,7 +34,7 @@ def initialize_scheduler(scheduler):
     )
 
     # Add a test task that runs every minute (for development)
-    if current_app.config['DEBUG']:
+    if current_app.config.get('DEBUG', False):
         scheduler.add_job(
             id='test_scheduler',
             func=test_scheduler_function,
@@ -48,66 +48,64 @@ def initialize_scheduler(scheduler):
 
 def execute_pre_login():
     """Perform pre-login to refresh tokens before the actual reservation process"""
-    with current_app.app_context():
-        current_app.logger.info("Starting pre-login process")
+    current_app.logger.info("Starting pre-login process")
 
-        try:
-            # Calculate the number of workers based on server resources
-            # A reasonable default is the number of CPU cores + 1
-            import multiprocessing
-            max_workers = min(multiprocessing.cpu_count() + 1, 16)  # Cap at 16 workers to prevent overloading
+    try:
+        # Calculate the number of workers based on server resources
+        # A reasonable default is the number of CPU cores + 1
+        import multiprocessing
+        max_workers = min(multiprocessing.cpu_count() + 1, 16)  # Cap at 16 workers to prevent overloading
 
-            # Perform pre-login for all users with pending reservations using parallel processing
-            results = ReservationService.perform_pre_login(max_workers=max_workers)
+        # Perform pre-login for all users with pending reservations using parallel processing
+        results = ReservationService.perform_pre_login(max_workers=max_workers)
 
-            # Log results
-            current_app.logger.info(
-                f"Pre-login completed: "
-                f"{results['successful']} successful, "
-                f"{results['failed']} failed"
-            )
+        # Log results
+        current_app.logger.info(
+            f"Pre-login completed: "
+            f"{results['successful']} successful, "
+            f"{results['failed']} failed"
+        )
 
-            return results
+        return results
 
-        except Exception as e:
-            current_app.logger.error(f"Error in pre-login process: {str(e)}")
-            return {'error': str(e)}
+    except Exception as e:
+        current_app.logger.error(f"Error in pre-login process: {str(e)}")
+        return {'error': str(e)}
+
 
 def execute_scheduled_reservations():
     """Execute all pending reservations for tomorrow using parallel processing"""
-    with current_app.app_context():
-        current_app.logger.info("Starting scheduled reservation execution with parallel processing")
+    current_app.logger.info("Starting scheduled reservation execution with parallel processing")
 
-        try:
-            # Calculate the number of workers based on server resources
-            # A reasonable default is the number of CPU cores + 1
-            import multiprocessing
-            max_workers = min(multiprocessing.cpu_count() + 1, 16)  # Cap at 16 workers to prevent overloading
+    try:
+        # Calculate the number of workers based on server resources
+        # A reasonable default is the number of CPU cores + 1
+        import multiprocessing
+        max_workers = min(multiprocessing.cpu_count() + 1, 16)  # Cap at 16 workers to prevent overloading
 
-            # Execute all reservations with parallel processing
-            results = ReservationService.execute_reservations(max_workers=max_workers)
+        # Execute all reservations with parallel processing
+        results = ReservationService.execute_reservations(max_workers=max_workers)
 
-            # Send notifications
-            notification_count = NotificationService.send_bulk_reservation_results(results)
+        # Send notifications
+        notification_count = NotificationService.send_bulk_reservation_results(results)
 
-            # Log results
-            current_app.logger.info(
-                f"Parallel reservation execution completed: "
-                f"{results['total_successful']} successful, "
-                f"{results['total_failed']} failed, "
-                f"{notification_count} notifications sent. "
-                f"Using {max_workers} worker threads."
-            )
+        # Log results
+        current_app.logger.info(
+            f"Parallel reservation execution completed: "
+            f"{results['total_successful']} successful, "
+            f"{results['total_failed']} failed, "
+            f"{notification_count} notifications sent. "
+            f"Using {max_workers} worker threads."
+        )
 
-            return results
+        return results
 
-        except Exception as e:
-            current_app.logger.error(f"Error in scheduled reservation execution: {str(e)}")
-            return {'error': str(e)}
+    except Exception as e:
+        current_app.logger.error(f"Error in scheduled reservation execution: {str(e)}")
+        return {'error': str(e)}
 
 
 def test_scheduler_function():
     """Test function to verify the scheduler is working"""
-    with current_app.app_context():
-        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        current_app.logger.info(f"Test scheduler function executed at {current_time}")
+    current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    current_app.logger.info(f"Test scheduler function executed at {current_time}")

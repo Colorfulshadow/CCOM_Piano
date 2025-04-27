@@ -1,7 +1,7 @@
 """
 @Author: Tianyi Zhang
 @Date: 2025/4/26
-@Description: 
+@Description: Application initialization
 """
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
@@ -25,13 +25,16 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
 
+    # Add this configuration to ensure scheduler jobs run within app context
+    app.config['SCHEDULER_API_ENABLED'] = True
+    app.config['SCHEDULER_EXECUTORS'] = {'default': {'type': 'threadpool', 'max_workers': 20}}
+    app.config['SCHEDULER_JOB_DEFAULTS'] = {'coalesce': False, 'max_instances': 3}
 
     # Initialize extensions with app
     db.init_app(app)
     migrate.init_app(app, db)
     login_manager.init_app(app)
     scheduler.init_app(app)
-
 
     # Register blueprints
     from app.routes.auth import auth_bp
@@ -52,10 +55,9 @@ def create_app(config_class=Config):
 
     @app.context_processor
     def inject_now():
-        from flask import current_app
         return {
             'now': datetime.datetime.now(),
-            'current_app': current_app
+            'current_app': app
         }
 
     return app
