@@ -1,7 +1,7 @@
 """
 @Author: Tianyi Zhang
 @Date: 2025/4/26
-@Description: Improved reservation processing implementation with better thread-safe handling
+@Description: Fixed reservation processing implementation with correct history record creation
 """
 from datetime import datetime, timedelta, date
 from flask import current_app
@@ -18,6 +18,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import concurrent.futures
 import threading
 import time
+
+from app.services.notification_service import NotificationService
+
 
 # Thread-local storage for database session management
 thread_local = threading.local()
@@ -135,7 +138,7 @@ class ReservationService:
     @staticmethod
     def attempt_reservation(client, room_ccom_id, start_timestamp, end_timestamp, max_attempts=5, retry_delay=0.5):
         """
-        Attempt to make a reservation multiple times before giving up
+        Attempt to make a reservation, correctly handling all response types
 
         Args:
             client: CCOMClient instance
@@ -152,27 +155,58 @@ class ReservationService:
             try:
                 response = client.reserve_room(room_ccom_id, start_timestamp, end_timestamp)
 
-                # Check if success
-                if response.get('status') == 200 and response.get('msg') == '成功':
+                # Check response message
+                msg = response.get('msg', '')
+                status = response.get('status', 0)
+
+                # IMPORTANT: Only consider it a success if status is 200 AND msg is "成功"
+                if status == 200 and msg == '成功':
+                    current_app.logger.info(f"Reservation successful on attempt {attempt + 1}")
                     return True, None
 
-                # Check if already chosen (this is not a real failure, just means it's already reserved successfully)
-                if response.get('msg') and '已选择' in response.get('msg'):
+                # Handle specific failure cases
+
+                # "琴房暂未开放" means the piano room is not open yet - this is a failure
+                if '琴房暂未开放' in msg:
+                    current_app.logger.warning(f"Piano room not open yet on attempt {attempt + 1}")
+                    # This is a definite failure, not a retry condition
+                    return False, msg
+
+                # Already chosen is considered a success
+                if '已选择' in msg:
+                    current_app.logger.info(f"Room already reserved successfully")
                     return True, None
 
-                # If this is not the last attempt, wait and try again
+                # Exceeded order limit is a definite failure
+                if '超出预约订单数量限制' in msg:
+                    current_app.logger.warning(f"Reservation failed: Exceeded limit")
+                    return False, msg
+
+                # For duplicate request errors, continue trying
+                if '重复请求' in msg:
+                    if attempt < max_attempts - 1:
+                        current_app.logger.info(
+                            f"Retrying after duplicate request (attempt {attempt + 1}/{max_attempts})")
+                        time.sleep(retry_delay)
+                        continue
+                    else:
+                        # If all attempts result in duplicate requests, it may be already successful
+                        # or there's a system issue - mark as failure to be safe
+                        return False, "Maximum duplicate requests"
+
+                # For other failures, retry if not the last attempt
                 if attempt < max_attempts - 1:
-                    # Log the retry
-                    current_app.logger.info(f"Retrying reservation (attempt {attempt+1}/{max_attempts}): {response.get('msg')}")
+                    current_app.logger.info(f"Retrying reservation (attempt {attempt + 1}/{max_attempts}): {msg}")
                     time.sleep(retry_delay)
                     continue
 
-                # All attempts failed
-                return False, response.get('msg', 'Unknown error')
+                # All attempts failed with non-specific errors
+                return False, msg
 
             except Exception as e:
                 if attempt < max_attempts - 1:
-                    current_app.logger.info(f"Exception during reservation (attempt {attempt+1}/{max_attempts}): {str(e)}")
+                    current_app.logger.info(
+                        f"Exception during reservation (attempt {attempt + 1}/{max_attempts}): {str(e)}")
                     time.sleep(retry_delay)
                     continue
                 return False, str(e)
@@ -182,7 +216,7 @@ class ReservationService:
     @staticmethod
     def process_single_recurring_reservation(reservation, target_date, results_dict, lock):
         """
-        Process a single recurring reservation
+        Process a single recurring reservation with improved debugging and direct notifications
 
         Args:
             reservation: RecurringReservation instance
@@ -194,6 +228,8 @@ class ReservationService:
             None (updates results_dict in place)
         """
         session = None
+        history_id = None  # Track created history ID for debugging
+
         try:
             # Get thread-local session
             session = ReservationService.get_db_session()
@@ -243,7 +279,7 @@ class ReservationService:
                 reservation.end_time
             )
 
-            # Process all segments with multiple attempts per segment
+            # Process all segments with improved error handling
             all_segments_succeeded = True
             all_errors = []
 
@@ -255,9 +291,11 @@ class ReservationService:
 
                 if not success:
                     all_segments_succeeded = False
-                    all_errors.append(error_msg or "Unknown error")
+                    # Only add non-None, non-empty error messages
+                    if error_msg:
+                        all_errors.append(error_msg)
 
-            # Only record the final result in history
+            # Record results
             with lock:
                 results_dict['processed'] += 1
 
@@ -268,10 +306,11 @@ class ReservationService:
                 else:
                     results_dict['failed'] += 1
                     status = 'failed'
-                    message = '; '.join(all_errors)
+                    message = '; '.join(all_errors) if all_errors else "Unknown error"
 
-            # Save to history - only one entry regardless of how many segments or attempts
-            history = ReservationHistory(
+            # Always create a new history entry for better tracking and to ensure we have a record
+            # First, create the new history entry
+            new_history = ReservationHistory(
                 user_id=reservation.user_id,
                 room_id=reservation.room_id,
                 reservation_date=target_date,
@@ -280,10 +319,88 @@ class ReservationService:
                 status=status,
                 message=message,
                 source_type='recurring',
-                source_id=reservation.id
+                source_id=reservation.id,
+                created_at=datetime.utcnow()  # Explicitly set creation time
             )
-            session.add(history)
-            session.commit()
+
+            # Add to session and commit immediately
+            session.add(new_history)
+
+            try:
+                session.flush()  # Flush to get the ID before commit
+                history_id = new_history.id
+                session.commit()
+                current_app.logger.info(f"Successfully created new history entry: ID={history_id}")
+            except Exception as commit_error:
+                session.rollback()
+                current_app.logger.error(f"Error creating history: {str(commit_error)}")
+                # Try one more time with a new session
+                try:
+                    session.close()
+                    session = ReservationService.get_db_session()
+
+                    # Create a new history entry with a fresh session
+                    history = ReservationHistory(
+                        user_id=reservation.user_id,
+                        room_id=reservation.room_id,
+                        reservation_date=target_date,
+                        start_time=reservation.start_time,
+                        end_time=reservation.end_time,
+                        status=status,
+                        message=message,
+                        source_type='recurring',
+                        source_id=reservation.id,
+                        created_at=datetime.utcnow()
+                    )
+                    session.add(history)
+                    session.flush()
+                    history_id = history.id
+                    session.commit()
+                    current_app.logger.info(f"Successfully saved history on second attempt: ID={history_id}")
+                except Exception as retry_error:
+                    current_app.logger.error(f"Final error saving history: {str(retry_error)}")
+                    with lock:
+                        results_dict['errors'].append(f"Could not save history: {str(retry_error)}")
+
+            # Log the creation of history entry for debugging
+            current_app.logger.info(f"Created/updated history entry: ID={history_id}, "
+                                    f"User={reservation.user_id}, Room={reservation.room_id}, "
+                                    f"Date={target_date}, Status={status}")
+
+            # Send notification directly after processing the reservation
+            try:
+                # Check if notifications are enabled in the configuration
+                if current_app.config.get('NOTIFICATION_ENABLED', False):
+                    current_app.logger.info(f"Sending direct notification for history ID {history_id}")
+
+                    if status == 'successful':
+                        NotificationService.send_reservation_success(
+                            user_id=reservation.user_id,
+                            room_name=room.name,
+                            date=target_date.strftime('%Y-%m-%d'),
+                            start_time=reservation.start_time,
+                            end_time=reservation.end_time
+                        )
+                    else:
+                        NotificationService.send_reservation_failure(
+                            user_id=reservation.user_id,
+                            room_name=room.name,
+                            date=target_date.strftime('%Y-%m-%d'),
+                            start_time=reservation.start_time,
+                            end_time=reservation.end_time,
+                            reason=message
+                        )
+            except Exception as notification_error:
+                current_app.logger.error(
+                    f"Error sending notification for history {history_id}: {str(notification_error)}")
+                # Don't let notification failure affect the reservation result
+                pass
+
+            # Include created history information in results
+            with lock:
+                if 'created_histories' not in results_dict:
+                    results_dict['created_histories'] = []
+                results_dict['created_histories'].append(history_id)
 
         except Exception as e:
             with lock:
@@ -295,10 +412,12 @@ class ReservationService:
             if session:
                 ReservationService.close_db_session()
 
+            return history_id
+
     @staticmethod
     def process_single_one_time_reservation(reservation, target_date, results_dict, lock):
         """
-        Process a single one-time reservation
+        Process a single one-time reservation with guaranteed single history entry and direct notifications
 
         Args:
             reservation: OneTimeReservation instance
@@ -310,6 +429,8 @@ class ReservationService:
             None (updates results_dict in place)
         """
         session = None
+        history_id = None
+
         try:
             # Get thread-local session
             session = ReservationService.get_db_session()
@@ -414,7 +535,7 @@ class ReservationService:
                     reservation.end_time
                 )
 
-                # Process all segments with multiple attempts per segment
+                # Process all segments
                 all_segments_succeeded = True
                 all_errors = []
 
@@ -426,9 +547,11 @@ class ReservationService:
 
                     if not success:
                         all_segments_succeeded = False
-                        all_errors.append(error_msg or "Unknown error")
+                        # Only add non-None, non-empty error messages
+                        if error_msg:
+                            all_errors.append(error_msg)
 
-                # Record results - only one entry regardless of attempts
+                # Record results
                 with lock:
                     results_dict['processed'] += 1
 
@@ -441,12 +564,13 @@ class ReservationService:
                         reservation.status = 'failed'
                         results_dict['failed'] += 1
                         status = 'failed'
-                        message = '; '.join(all_errors)
+                        message = '; '.join(all_errors) if all_errors else "Unknown error"
 
                 session.commit()
 
-            # Save to history - only one entry regardless of attempts
-            history = ReservationHistory(
+            # Always create a new history entry for better tracking and to ensure we have a record
+            # First, create the new history entry
+            new_history = ReservationHistory(
                 user_id=reservation.user_id,
                 room_id=reservation.room_id,
                 reservation_date=target_date,
@@ -455,10 +579,82 @@ class ReservationService:
                 status=status,
                 message=message,
                 source_type='one_time',
-                source_id=reservation.id
+                source_id=reservation.id,
+                created_at=datetime.utcnow()  # Explicitly set creation time
             )
-            session.add(history)
-            session.commit()
+
+            # Add to session and commit immediately
+            session.add(new_history)
+
+            try:
+                session.flush()  # Flush to get the ID before commit
+                history_id = new_history.id
+                session.commit()
+                current_app.logger.info(f"Successfully created new one-time history entry: ID={history_id}")
+            except Exception as commit_error:
+                session.rollback()
+                current_app.logger.error(f"Error creating one-time history: {str(commit_error)}")
+                # Try one more time with a new session
+                try:
+                    session.close()
+                    session = ReservationService.get_db_session()
+
+                    # Create a new history entry with a fresh session
+                    history = ReservationHistory(
+                        user_id=reservation.user_id,
+                        room_id=reservation.room_id,
+                        reservation_date=target_date,
+                        start_time=reservation.start_time,
+                        end_time=reservation.end_time,
+                        status=status,
+                        message=message,
+                        source_type='one_time',
+                        source_id=reservation.id,
+                        created_at=datetime.utcnow()
+                    )
+                    session.add(history)
+                    session.flush()
+                    history_id = history.id
+                    session.commit()
+                    current_app.logger.info(f"Successfully saved one-time history on second attempt: ID={history_id}")
+                except Exception as retry_error:
+                    current_app.logger.error(f"Final error saving one-time history: {str(retry_error)}")
+                    with lock:
+                        results_dict['errors'].append(f"Could not save one-time history: {str(retry_error)}")
+
+            # Log the creation of history entry
+            current_app.logger.info(f"Created/updated one-time history entry: ID={history_id}, "
+                                    f"User={reservation.user_id}, Room={reservation.room_id}, "
+                                    f"Date={target_date}, Status={status}")
+
+            # Send notification directly after processing the reservation
+            try:
+                # Check if notifications are enabled in the configuration
+                if current_app.config.get('NOTIFICATION_ENABLED', False):
+                    current_app.logger.info(f"Sending direct notification for one-time history ID {history_id}")
+
+                    if status == 'successful':
+                        NotificationService.send_reservation_success(
+                            user_id=reservation.user_id,
+                            room_name=room.name,
+                            date=target_date.strftime('%Y-%m-%d'),
+                            start_time=reservation.start_time,
+                            end_time=reservation.end_time
+                        )
+                    else:
+                        NotificationService.send_reservation_failure(
+                            user_id=reservation.user_id,
+                            room_name=room.name,
+                            date=target_date.strftime('%Y-%m-%d'),
+                            start_time=reservation.start_time,
+                            end_time=reservation.end_time,
+                            reason=message
+                        )
+            except Exception as notification_error:
+                current_app.logger.error(
+                    f"Error sending notification for one-time history {history_id}: {str(notification_error)}")
+                # Don't let notification failure affect the reservation result
+                pass
 
         except Exception as e:
             try:

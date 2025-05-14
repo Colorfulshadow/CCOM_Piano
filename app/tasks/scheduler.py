@@ -7,7 +7,6 @@ from flask import current_app
 from datetime import datetime
 import pytz
 from app.services.reservation_service import ReservationService
-from app.services.notification_service import NotificationService
 from app import db
 from flask import Flask
 
@@ -98,26 +97,22 @@ def execute_scheduled_reservations():
         return {'error': 'Flask app reference not set'}
 
     with flask_app.app_context():
-        flask_app.logger.info("Starting scheduled reservation execution with parallel processing")
+        flask_app.logger.info("Starting scheduled reservation execution")
 
         try:
             # Calculate the number of workers based on server resources
-            # A reasonable default is the number of CPU cores + 1
             import multiprocessing
-            max_workers = min(multiprocessing.cpu_count() + 1, 16)  # Cap at 16 workers to prevent overloading
+            max_workers = min(multiprocessing.cpu_count() + 1, 16)  # Cap at 16 workers
 
             # Execute all reservations with parallel processing
+            # Notifications will be sent directly in the reservation process
             results = ReservationService.execute_reservations(max_workers=max_workers)
-
-            # Send notifications
-            notification_count = NotificationService.send_bulk_reservation_results(results)
 
             # Log results
             flask_app.logger.info(
-                f"Parallel reservation execution completed: "
+                f"Reservation execution completed: "
                 f"{results['total_successful']} successful, "
-                f"{results['total_failed']} failed, "
-                f"{notification_count} notifications sent. "
+                f"{results['total_failed']} failed. "
                 f"Using {max_workers} worker threads."
             )
 
@@ -125,8 +120,9 @@ def execute_scheduled_reservations():
 
         except Exception as e:
             flask_app.logger.error(f"Error in scheduled reservation execution: {str(e)}")
+            import traceback
+            flask_app.logger.error(traceback.format_exc())
             return {'error': str(e)}
-
 
 def test_scheduler_function():
     """Test function to verify the scheduler is working"""

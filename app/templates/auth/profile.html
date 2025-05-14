@@ -28,7 +28,7 @@
                     <div class="mb-3">
                         <label for="push_notification_key" class="form-label">推送通知密钥</label>
                         <input type="text" class="form-control" id="push_notification_key" name="push_notification_key" value="{{ user.push_notification_key or '' }}">
-                        <div class="form-text">用于发送关于您预约的推送通知</div>
+                        <div class="form-text">用于发送关于您预约的推送通知。多个密钥请用逗号分隔，例如: key1,key2,key3</div>
                     </div>
 
                     <div class="d-grid">
@@ -113,6 +113,9 @@
                 {% if user.push_notification_key %}
                 <div class="alert alert-success">
                     <i class="fas fa-check-circle"></i> 推送通知已启用。
+                    {% if ',' in user.push_notification_key %}
+                    <span>您已设置多个通知密钥。</span>
+                    {% endif %}
                 </div>
 
                 <form method="POST" action="{{ url_for('auth.test_notification') }}">
@@ -132,6 +135,7 @@
                         <li>访问 <a href="https://notice.zty.ink/" target="_blank">https://notice.zty.ink/</a></li>
                         <li>点击"创建您自己的频道"</li>
                         <li>复制频道密钥并粘贴到上方的"推送通知密钥"字段</li>
+                        <li>对于多个设备，请创建多个密钥并用逗号分隔，如：key1,key2,key3</li>
                         <li>保存您的更改</li>
                     </ol>
                 </div>

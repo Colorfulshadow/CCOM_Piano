@@ -1,7 +1,7 @@
 """
 @Author: Tianyi Zhang
 @Date: 2025/4/26
-@Description: Modified CCOM client to handle multiple reservation segments
+@Description: Modified CCOM client with proper error handling
 """
 import requests
 import json
@@ -124,19 +124,17 @@ class CCOMClient:
         """Get user's current reservations"""
         return self._call_api('get', 'getOrderList?type=0', {})
 
-    def reserve_room(self, room_id, start_time, end_time, max_retries=4, retry_delay=0.1):
+    def reserve_room(self, room_id, start_time, end_time):
         """
-        Make a room reservation with retry logic in case of failure
+        Make a room reservation with proper error handling
 
         Args:
             room_id: Room CCOM ID
             start_time: Reservation start time (millisecond timestamp)
             end_time: Reservation end time (millisecond timestamp)
-            max_retries: Maximum number of retries on failure
-            retry_delay: Delay between retries in seconds
 
         Returns:
-            dict: API response
+            dict: API response with status and message
         """
         # Ensure we're not exceeding the 3-hour limit
         hours_diff = (end_time - start_time) / (1000 * 60 * 60)  # Convert ms to hours
@@ -152,18 +150,18 @@ class CCOMClient:
             'subscribeList': [{"startTime": start_time, "endTime": end_time, "aiMonitoringNum": None}]
         }
 
-        for attempt in range(max_retries):
-            try:
-                result = self._call_api('post', 'placeAnOrder', data)
-                return result
-            except ApiError as e:
-                current_app.logger.error(f"Attempt {attempt + 1} failed: {str(e)}")
-                if attempt < max_retries - 1:
-                    time.sleep(retry_delay)  # Wait before retrying
-                else:
-                    raise
-        return None
-
+        try:
+            result = self._call_api('post', 'placeAnOrder', data)
+            # Log the response for debugging
+            current_app.logger.info(f"Reserve room response: {result}")
+            return result
+        except ApiError as e:
+            # Make sure we return a dictionary with status and msg even in error cases
+            current_app.logger.error(f"Reserve room API error: {str(e)}")
+            return {
+                'status': 500,
+                'msg': f'API error: {str(e)}'
+            }
 
     def cancel_reservation(self, order_id):
         """Cancel an existing reservation"""

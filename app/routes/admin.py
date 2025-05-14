@@ -1,7 +1,7 @@
 """
 @Author: Tianyi Zhang
 @Date: 2025/4/26
-@Description: 
+@Description:
 """
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify
 from flask_login import login_required, current_user
@@ -224,23 +224,82 @@ def system():
 @login_required
 @admin_required
 def test_reservation():
-    """测试运行预约处理"""
+    """Test run reservation processing - notifications are now sent directly during processing"""
     try:
-        # 执行预约
+        # Execute reservations - notifications will be sent directly in the process
         results = ReservationService.execute_reservations()
 
-        # 如果请求发送通知
+        # Log the results for debugging
+        current_app.logger.info(f"Reservation test results: {results}")
+
+        # Force config to enable notifications if selected
         if 'send_notifications' in request.form:
-            notification_count = NotificationService.send_bulk_reservation_results(results)
-            results['notifications_sent'] = notification_count
+            original_setting = current_app.config.get('NOTIFICATION_ENABLED', False)
+            current_app.config['NOTIFICATION_ENABLED'] = True
+            current_app.logger.info("Notifications enabled for this test run")
 
         flash('预约处理成功执行！', 'success')
         return render_template('admin/reservation_results.html', results=results)
 
     except Exception as e:
+        current_app.logger.error(f"Error in test reservation execution: {str(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
         flash(f'执行预约处理时出错：{str(e)}', 'danger')
         return redirect(url_for('admin.system'))
 
+
+@admin_bp.route('/system/test-notification')
+@login_required
+@admin_required
+def test_admin_notification():
+    """Send a test notification to all users with notification keys"""
+    try:
+        # Get users with notification keys
+        users_with_keys = User.query.filter(User.push_notification_key != None).filter(
+            User.push_notification_key != '').all()
+
+        if not users_with_keys:
+            flash('没有找到设置了推送通知密钥的用户', 'warning')
+            return redirect(url_for('admin.system'))
+
+        # Force enable notifications for this test
+        original_setting = current_app.config.get('NOTIFICATION_ENABLED', False)
+        current_app.config['NOTIFICATION_ENABLED'] = True
+
+        # Send test notifications
+        sent_count = 0
+        for user in users_with_keys:
+            # Check if the key has valid format
+            notification_keys = [key.strip() for key in user.push_notification_key.split(',') if key.strip()]
+            if not notification_keys:
+                continue
+
+            success = NotificationService.send_notification(
+                user_id=user.id,
+                title="CCOM钢琴预约系统通知测试",
+                message=f"您好，{user.username}。这是一条测试通知，发送于 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}。",
+                icon="https://api.zty.ink/api/v2/objects/icon/se2ezd5tzxgsubc0rx.png",
+                group="CCOM Piano Reservation"
+            )
+
+            if success:
+                sent_count += 1
+
+        # Restore original setting
+        current_app.config['NOTIFICATION_ENABLED'] = original_setting
+
+        if sent_count > 0:
+            flash(f'成功发送 {sent_count} 条测试通知！', 'success')
+        else:
+            flash('未能成功发送任何测试通知', 'warning')
+
+        return redirect(url_for('admin.system'))
+
+    except Exception as e:
+        current_app.logger.error(f"Error sending admin test notifications: {str(e)}")
+        flash(f'发送测试通知时出错：{str(e)}', 'danger')
+        return redirect(url_for('admin.system'))
 
 @admin_bp.route('/system/server-time')
 @login_required
